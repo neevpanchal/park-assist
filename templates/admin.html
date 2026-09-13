@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<div class="board-bar">
+    <div>
+        <div class="board-label">Admin overview</div>
+        <div class="board-date">Parking control panel</div>
+    </div>
+    <div class="board-stats">
+        <div class="board-stat">
+            <span class="value">{{ total_slots }}</span>
+            <span class="label">Parking slots</span>
+        </div>
+        <div class="board-stat">
+            <span class="value">{{ active_bookings }}</span>
+            <span class="label">Active bookings</span>
+        </div>
+    </div>
+</div>
+
+<h3>Add new slot</h3>
+<form method="POST" action="{{ url_for('add_slot') }}" class="inline-form admin-add-form">
+    <input type="text" name="slot_number" placeholder="Slot Number (e.g. C1)" required>
+    <select name="slot_type">
+        <option value="Car">Car</option>
+        <option value="Bike">Bike</option>
+    </select>
+    <input type="text" name="location" placeholder="Location (e.g. Block C)" required>
+    <button type="submit" class="btn btn-small">Add slot</button>
+</form>
+
+<h3>All parking slots</h3>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Slot No.</th>
+            <th>Type</th>
+            <th>Location</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for slot in slots %}
+        <tr>
+            <td class="mono">{{ slot.slot_number }}</td>
+            <td>{{ slot.slot_type }}</td>
+            <td>{{ slot.location }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('delete_slot', slot_id=slot.id) }}"
+                      onsubmit="return confirm('Delete this slot? All its bookings will remain in history.');">
+                    <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h3>All bookings (history)</h3>
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Student</th>
+            <th>Email</th>
+            <th>Slot</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Vehicle No.</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for b in bookings %}
+        <tr>
+            <td>{{ b.full_name }}</td>
+            <td>{{ b.email }}</td>
+            <td class="mono">{{ b.slot_number }}</td>
+            <td class="mono">{{ b.booking_date }}</td>
+            <td class="mono">{{ b.start_time }}-{{ b.end_time }}</td>
+            <td>{{ b.vehicle_number }}</td>
+            <td>
+                <span class="badge {{ 'badge-green' if b.status == 'Active' else 'badge-grey' }}">
+                    {{ b.status }}
+                </span>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

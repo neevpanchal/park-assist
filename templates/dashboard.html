@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Parking Slots{% endblock %}
+
+{% block content %}
+{% set total_capacity = slots|length * total_hours %}
+{% set booked_total = booked_counts.values()|sum %}
+
+<div class="board-bar">
+    <div>
+        <div class="board-label">Lot status</div>
+        <div class="board-date">{{ selected_date }}</div>
+    </div>
+    <div class="board-stats">
+        <div class="board-stat">
+            <span class="value">{{ slots|length }}</span>
+            <span class="label">Parking slots</span>
+        </div>
+        <div class="board-stat">
+            <span class="value">{{ total_capacity - booked_total }}/{{ total_capacity }}</span>
+            <span class="label">Hours free today</span>
+        </div>
+        <div class="board-stat">
+            <span class="value">7-21</span>
+            <span class="label">Operating hours</span>
+        </div>
+    </div>
+</div>
+
+<form method="GET" action="{{ url_for('dashboard') }}" class="date-filter-form">
+    <label>Choose a date</label>
+    <input type="date" name="date" value="{{ selected_date }}" min="{{ today }}">
+    <button type="submit" class="btn btn-small btn-secondary">View</button>
+    <a href="{{ url_for('dashboard', date=today) }}" class="btn btn-small btn-secondary">Today</a>
+    <a href="{{ url_for('dashboard', date=tomorrow) }}" class="btn btn-small btn-secondary">Tomorrow</a>
+</form>
+
+<div class="slot-grid">
+    {% for slot in slots %}
+    {% set booked = booked_counts.get(slot.id, 0) %}
+    {% set fill_pct = (booked / total_hours * 100) if total_hours else 0 %}
+    <div class="slot-card">
+        <div class="slot-card-head">
+            <span class="led-dot {{ 'led-red' if booked == total_hours else 'led-green' }}"></span>
+            <span class="slot-code">{{ slot.slot_number }}</span>
+        </div>
+        <p class="slot-meta">{{ slot.slot_type }} spot in {{ slot.location }}</p>
+
+        <div class="gauge">
+            <div class="gauge-track">
+                <div class="gauge-fill {{ 'gauge-full' if booked == total_hours else '' }}" style="width: {{ fill_pct }}%;"></div>
+            </div>
+            <span class="gauge-label">{{ booked }} / {{ total_hours }} hours booked</span>
+        </div>
+
+        <a href="{{ url_for('slot_detail', slot_id=slot.id, date=selected_date) }}" class="btn btn-small btn-secondary">
+            View time slots
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

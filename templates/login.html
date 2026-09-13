@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Login{% endblock %}
+
+{% block body %}
+<div class="auth-page">
+    <div class="auth-panel">
+        <span class="brand-mark">P</span>
+        <h1>Find and reserve a parking spot on campus in seconds.</h1>
+        <p class="tagline">Check live slot availability, book by the hour, and manage your bookings from one place.</p>
+
+        <div class="auth-stats">
+            <div class="auth-stat">
+                <span class="value">7-21</span>
+                <span class="label">Hours open (7 AM - 9 PM)</span>
+            </div>
+            <div class="auth-stat">
+                <span class="value">14</span>
+                <span class="label">Hourly slots per day</span>
+            </div>
+            <div class="auth-stat">
+                <span class="value">1 hr</span>
+                <span class="label">Per booking</span>
+            </div>
+        </div>
+
+        <div class="auth-stripe"></div>
+    </div>
+
+    <div class="auth-form-side">
+        <div style="width: 100%; max-width: 380px;">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <div class="form-card">
+                <h2>Log in</h2>
+                <form method="POST" action="{{ url_for('login') }}">
+                    <label>Email</label>
+                    <input type="email" name="email" required placeholder="you@university.edu">
+
+                    <label>Password</label>
+                    <input type="password" name="password" required placeholder="Enter password">
+
+                    <button type="submit" class="btn">Login</button>
+                </form>
+                <p class="form-footer">
+                    Don't have an account? <a href="{{ url_for('register') }}">Register here</a>
+                </p>
+                <p class="form-hint">admin@university.edu / admin123</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

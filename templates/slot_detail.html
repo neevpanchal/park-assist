@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ slot.slot_number }} - Time Slots{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('dashboard', date=selected_date) }}" class="back-link">&larr; Back to all slots</a>
+
+<h2>Slot {{ slot.slot_number }} &mdash; {{ slot.slot_type }} spot in {{ slot.location }}</h2>
+<p class="slot-meta" style="margin-bottom: 20px;">Showing hourly availability for <strong>{{ selected_date }}</strong></p>
+
+<div class="time-list">
+    {% for cell in cells %}
+    <div class="time-row">
+        <div class="time-row-info">
+            <span class="led-dot {{ 'led-green' if cell.status == 'Available' else ('led-red' if cell.status == 'Booked' else 'led-grey') }}"></span>
+            <span class="time-range">{{ cell.display }}</span>
+            <span class="badge {{ 'badge-green' if cell.status == 'Available' else ('badge-red' if cell.status == 'Booked' else 'badge-grey') }}">
+                {{ cell.status }}
+            </span>
+        </div>
+
+        {% if cell.status == 'Available' %}
+        <form method="POST" action="{{ url_for('book_slot') }}" class="inline-form">
+            <input type="hidden" name="slot_id" value="{{ slot.id }}">
+            <input type="hidden" name="booking_date" value="{{ selected_date }}">
+            <input type="hidden" name="start_time" value="{{ cell.start }}">
+            <input type="hidden" name="end_time" value="{{ cell.end }}">
+            <input type="text" name="vehicle_number" placeholder="Vehicle No." required>
+            <button type="submit" class="btn btn-small">Book</button>
+        </form>
+        {% else %}
+        <button class="btn btn-small btn-disabled" disabled>
+            {{ 'Already booked' if cell.status == 'Booked' else 'Time passed' }}
+        </button>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

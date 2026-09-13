@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}My Bookings{% endblock %}
+
+{% block content %}
+<h2>My bookings</h2>
+
+{% if bookings|length == 0 %}
+    <p class="empty-msg">You have not booked any slots yet.</p>
+{% else %}
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Slot</th>
+            <th>Type</th>
+            <th>Location</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Vehicle No.</th>
+            <th>Status</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for b in bookings %}
+        <tr>
+            <td class="mono">{{ b.slot_number }}</td>
+            <td>{{ b.slot_type }}</td>
+            <td>{{ b.location }}</td>
+            <td class="mono">{{ b.booking_date }}</td>
+            <td class="mono">{{ b.start_time }}-{{ b.end_time }}</td>
+            <td>{{ b.vehicle_number }}</td>
+            <td>
+                <span class="badge {{ 'badge-green' if b.status == 'Active' else 'badge-grey' }}">
+                    {{ b.status }}
+                </span>
+            </td>
+            <td>
+                {% if b.status == 'Active' %}
+                <form method="POST" action="{{ url_for('cancel_booking', booking_id=b.id) }}">
+                    <button type="submit" class="btn btn-small btn-danger">Cancel</button>
+                </form>
+                {% else %}
+                &mdash;
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}
