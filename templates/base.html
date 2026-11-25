@@ -3,53 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Smart Parking System{% endblock %}</title>
+    <title>{% block title %}Smart University Parking{% endblock %}</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='ui.css') }}">
 </head>
 <body>
+{% set ep = request.endpoint %}
 
-    <nav class="navbar">
-        <div class="nav-inner">
-            <a class="nav-brand" href="{{ url_for('home') }}">
-                <span class="brand-mark">P</span>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<nav class="topbar" aria-label="Main">
+    <div class="topbar-inner">
+        <a class="nav-brand" href="{{ url_for('home') }}">
+            <span class="brand-mark">P</span>
+            <span class="brand-titles">
                 <span class="brand-text">Smart Parking</span>
-            </a>
-            <div class="nav-links">
+                <span class="brand-sub">University Facility</span>
+            </span>
+        </a>
+
+        <button type="button" class="menu-toggle" aria-expanded="false" aria-controls="navMenu" onclick="toggleMenu(this)">
+            <span class="sr-only">Open menu</span>
+            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+
+        <div class="nav-menu" id="navMenu">
+            <div class="nav-main">
                 {% if session.get('user_id') %}
                     {% if session.get('role') == 'admin' %}
-                        <a href="{{ url_for('admin_dashboard') }}">Admin Dashboard</a>
+                        <a href="{{ url_for('admin_dashboard') }}" class="nav-link {% if ep == 'admin_dashboard' %}is-active{% endif %}">Overview</a>
+                        <a href="{{ url_for('admin_overstay') }}" class="nav-link {% if ep == 'admin_overstay' %}is-active{% endif %}">Gate &amp; Overstay</a>
+                        <a href="{{ url_for('admin_analytics') }}" class="nav-link {% if ep == 'admin_analytics' %}is-active{% endif %}">Analytics</a>
                     {% else %}
-                        <a href="{{ url_for('dashboard') }}">Slots</a>
-                        <a href="{{ url_for('my_bookings') }}">My Bookings</a>
+                        <a href="{{ url_for('dashboard') }}" class="nav-link {% if ep in ('dashboard', 'slot_detail') %}is-active{% endif %}">Book Parking</a>
+                        <a href="{{ url_for('my_bookings') }}" class="nav-link {% if ep in ('my_bookings', 'booking_pass') %}is-active{% endif %}">My Bookings</a>
                     {% endif %}
-                    <span class="nav-user">{{ session.get('full_name') }}</span>
-                    <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+                {% endif %}
+                <a href="{{ url_for('rules') }}" class="nav-link {% if ep == 'rules' %}is-active{% endif %}">Rules</a>
+            </div>
+
+            <div class="nav-account">
+                {% if session.get('user_id') %}
+                    {% if session.get('role') != 'admin' %}
+                        <a href="{{ url_for('my_bookings') }}" class="strike-chip {% if current_user_strikes >= 3 %}is-critical{% elif current_user_strikes > 0 %}is-warn{% endif %}"
+                           title="No-show strikes. 3 strikes suspends booking.">
+                            <span class="strike-dot"></span>{{ current_user_strikes }}/3 strikes
+                        </a>
+                    {% endif %}
+                    <span class="nav-user" title="Signed in">
+                        <span class="avatar" aria-hidden="true">{{ (session.get('full_name') or '?')[:1]|upper }}</span>
+                        <span class="nav-user-name">{{ session.get('full_name') }}</span>
+                    </span>
+                    <a href="{{ url_for('logout') }}" class="nav-btn-ghost">Log out</a>
                 {% else %}
-                    <a href="{{ url_for('login') }}">Login</a>
-                    <a href="{{ url_for('register') }}">Register</a>
+                    <a href="{{ url_for('login') }}" class="nav-link {% if ep == 'login' %}is-active{% endif %}">Log in</a>
+                    <a href="{{ url_for('register') }}" class="nav-btn-primary">Create account</a>
                 {% endif %}
             </div>
         </div>
-    </nav>
-
-    {% block body %}
-    <div class="container">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="flash flash-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-
-        {% block content %}{% endblock %}
     </div>
-    {% endblock %}
+</nav>
 
+{% block body %}
+<main id="main" class="page">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-stack" role="status">
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}" data-autohide="{{ 'yes' if category == 'success' else 'no' }}">
+                    <span class="flash-icon" aria-hidden="true">{% if category == 'success' %}✓{% elif category == 'error' %}!{% else %}i{% endif %}</span>
+                    <div class="flash-text">{{ message }}</div>
+                    <button type="button" class="flash-close" aria-label="Dismiss" onclick="this.parentElement.remove()">&times;</button>
+                </div>
+            {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+</main>
+
+<footer class="site-foot">
+    <span>Smart University Parking · Open daily 7:00 AM – 9:00 PM</span>
+    <a href="{{ url_for('rules') }}">Parking rules</a>
+</footer>
+{% endblock %}
+
+<script>
+    function toggleMenu(btn) {
+        const menu = document.getElementById('navMenu');
+        const open = menu.classList.toggle('is-open');
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    // Success messages fade away on their own; errors stay until dismissed.
+    document.querySelectorAll('.flash[data-autohide="yes"]').forEach(function (el) {
+        setTimeout(function () {
+            el.classList.add('is-leaving');
+            setTimeout(function () { el.remove(); }, 400);
+        }, 7000);
+    });
+
+    // Live search for any table: <input data-filter-table="tableId">
+    document.querySelectorAll('[data-filter-table]').forEach(function (input) {
+        input.addEventListener('input', function () {
+            const table = document.getElementById(input.dataset.filterTable);
+            if (!table) return;
+            const q = input.value.trim().toLowerCase();
+            let shown = 0;
+            table.querySelectorAll('tbody tr:not(.empty-row)').forEach(function (row) {
+                const match = !q || row.textContent.toLowerCase().includes(q);
+                row.hidden = !match;
+                if (match) shown++;
+            });
+            const empty = table.querySelector('tbody .empty-row');
+            if (empty) empty.hidden = shown !== 0;
+        });
+    });
+
+    // Ask before destructive actions: <form data-confirm="Are you sure?">
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            if (!confirm(form.dataset.confirm)) e.preventDefault();
+        });
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop.is-open').forEach(function (m) { m.classList.remove('is-open'); });
+    });
+</script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

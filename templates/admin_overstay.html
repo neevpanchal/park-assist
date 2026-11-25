@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_head, stat, status_badge, table_search %}
+{% block title %}Gate &amp; Overstay &mdash; Smart Parking{% endblock %}
+
+{% block content %}
+{% set pending = violations | selectattr('status', 'equalto', 'Pending') | list %}
+
+{{ page_head('Gate & overstay', 'Log when a vehicle leaves. If it stayed past its booking, the fine (₹50 per 30 minutes) is worked out for you.', 'Admin') }}
+
+<div class="stat-row">
+    {{ stat(live_bookings|length, 'On the lot or expected today', 'amber') }}
+    {{ stat(pending|length, 'Unpaid fines', 'red' if pending else '') }}
+    {{ stat(violations|length, 'Violations on record', '') }}
+    {{ stat('₹50 / 30 min', 'Overstay rate', 'ink') }}
+</div>
+
+<!-- Vehicles today -->
+<section class="card">
+    <div class="card-head">
+        <div>
+            <h2>Vehicles today · {{ today|nice_date }}</h2>
+            <p>When a car leaves, check the exit time (defaults to now) and press <strong>Log exit</strong>.</p>
+        </div>
+        {% if live_bookings %}{{ table_search('liveTable', 'Search bay, plate or name') }}{% endif %}
+    </div>
+
+    {% if live_bookings|length == 0 %}
+        <p class="text-muted" style="padding:18px 22px;">No active or parked vehicles today.</p>
+    {% else %}
+    <div class="table-responsive">
+        <table class="data-table" id="liveTable">
+            <thead><tr><th>Bay</th><th>Vehicle</th><th>Booked</th><th>Status</th><th>Exit time</th></tr></thead>
+            <tbody>
+                {% for b in live_bookings %}
+                <tr>
+                    <td class="mono font-bold">{{ b.slot_number }}</td>
+                    <td><span class="mono font-bold">{{ b.vehicle_number }}</span><span class="cell-sub">{{ b.full_name }}</span></td>
+                    <td>{{ b.start_time|t12 }} – {{ b.end_time|t12 }}<span class="cell-sub">must leave by {{ b.end_time|t12 }}</span></td>
+                    <td>{{ status_badge(b.status) }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin_overstay') }}" class="row-actions" style="align-items:center;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="booking_id" value="{{ b.id }}">
+                            <label class="sr-only" for="exit{{ b.id }}">Exit time for bay {{ b.slot_number }}</label>
+                            <input type="time" id="exit{{ b.id }}" name="actual_exit_time" value="{{ now_time_str }}" class="date-input" required>
+                            <button type="submit" class="btn btn-small">Log exit</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr class="empty-row" hidden><td colspan="5">No matching vehicles.</td></tr>
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</section>
+
+<!-- Violations -->
+<div class="section-head">
+    <div>
+        <h2>Violations</h2>
+        <p>No-shows and overstays. Mark fines as paid or waive them once they've been settled at the gate.</p>
+    </div>
+    {% if violations %}{{ table_search('violationsTable', 'Search student or plate') }}{% endif %}
+</div>
+<section class="card">
+    {% if violations|length == 0 %}
+        <p class="text-muted" style="padding:18px 22px;">No violations recorded.</p>
+    {% else %}
+    <div class="table-responsive">
+        <table class="data-table" id="violationsTable">
+            <thead><tr><th>Student</th><th>Type</th><th>Details</th><th>Fine</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+                {% for v in violations %}
+                <tr>
+                    <td><strong>{{ v.full_name }}</strong><span class="cell-sub mono">{{ v.vehicle_number }}</span></td>
+                    <td><span class="badge {% if v.violation_type == 'No-Show' %}badge-red{% else %}badge-amber{% endif %}">{{ v.violation_type }}</span></td>
+                    <td class="text-sm">{{ v.description }}<span class="cell-sub">{{ v.created_at[:16] }}</span></td>
+                    <td class="mono font-bold">{% if v.penalty_amount > 0 %}₹{{ "%.2f"|format(v.penalty_amount) }}{% else %}—{% endif %}</td>
+                    <td><span class="badge {% if v.status in ('Paid', 'Waived') %}badge-green{% else %}badge-red{% endif %}">{{ v.status }}</span></td>
+                    <td>
+                        {% if v.status == 'Pending' %}
+                        <div class="row-actions">
+                            <form method="POST" action="{{ url_for('resolve_violation', violation_id=v.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="status_action" value="Paid">
+                                <button type="submit" class="btn btn-small btn-success">Mark paid</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('resolve_violation', violation_id=v.id) }}" data-confirm="Waive this violation for {{ v.full_name }}?">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="status_action" value="Waived">
+                                <button type="submit" class="btn btn-small btn-secondary">Waive</button>
+                            </form>
+                        </div>
+                        {% else %}
+                            <span class="text-muted text-sm">Settled by {{ v.resolved_by or 'admin' }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr class="empty-row" hidden><td colspan="6">No matching violations.</td></tr>
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

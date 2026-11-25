@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Official Rules &amp; Overstay Policy &mdash; Smart Parking{% endblock %}
+
+{% block content %}
+<div class="rules-page-container">
+    <header class="page-head">
+        <div class="page-head-text">
+            <span class="eyebrow">Parking rules</span>
+            <h1 class="page-title">How campus parking works</h1>
+            <p class="page-sub">The essentials are below. The full rules follow.</p>
+        </div>
+    </header>
+
+    <div class="key-rules">
+        <div class="key-rule"><div class="kr-big">7 AM – 9 PM</div><p>Open daily. Book 1 to 14 hours in a row.</p></div>
+        <div class="key-rule"><div class="kr-big">15 minutes</div><p>Arrive and show your QR pass at the gate within 15 minutes of your start time.</p></div>
+        <div class="key-rule is-danger"><div class="kr-big">3 strikes</div><p>Each missed arrival is a strike. 3 strikes pauses booking and bans your vehicle.</p></div>
+        <div class="key-rule is-danger"><div class="kr-big">₹50 / 30 min</div><p>Fine for staying past your booked end time, paid at the exit gate.</p></div>
+    </div>
+
+    <!-- Section 1: Facility Rules -->
+    <div class="rules-card">
+        <div class="rules-card-head">
+            <span class="rule-num-icon">1</span>
+            <h2>General Parking Facility Regulations</h2>
+        </div>
+
+        <div class="rule-item-grid">
+            <div class="rule-box">
+                <span class="rule-index">01</span>
+                <h4>Account Verification</h4>
+                <p>Students must maintain a verified account with valid university email and registered vehicle plate details to book bays.</p>
+            </div>
+            <div class="rule-box">
+                <span class="rule-index">02</span>
+                <h4>Official Bookings Only</h4>
+                <p>All reservations must be completed in advance through this official web portal. On-spot unofficial parking is strictly prohibited.</p>
+            </div>
+            <div class="rule-box">
+                <span class="rule-index">03</span>
+                <h4>Operating Schedule</h4>
+                <p>Facility operates from <strong>7:00 AM to 9:00 PM</strong> daily. Vehicles may not be parked outside of operating hours.</p>
+            </div>
+            <div class="rule-box">
+                <span class="rule-index">04</span>
+                <h4>Multi-Hour Bookings</h4>
+                <p>Reservations may span from 1 to 14 consecutive hours. Each reservation has an explicit start time and ending deadline.</p>
+            </div>
+            <div class="rule-box highlight-box">
+                <span class="rule-index text-amber">05</span>
+                <h4>15-Minute Grace Period</h4>
+                <p>Patrons must arrive and complete arrival check-in within <strong>15 minutes</strong> of their scheduled reservation start time.</p>
+            </div>
+            <div class="rule-box highlight-box">
+                <span class="rule-index text-danger">06</span>
+                <h4>No-Show Strike System</h4>
+                <p>Failing to check in within 15 minutes automatically marks the booking as a <strong>No-Show</strong>, issues 1 strike, and releases the space.</p>
+            </div>
+            <div class="rule-box highlight-box">
+                <span class="rule-index text-danger">07</span>
+                <h4>Three-Strike Suspension</h4>
+                <p>Accumulating <strong>3 strikes</strong> automatically suspends the student's booking privileges and bans the registered vehicle from the facility.</p>
+            </div>
+            <div class="rule-box">
+                <span class="rule-index">08</span>
+                <h4>Assigned Bay Parking</h4>
+                <p>Park strictly within your designated bay (<span class="mono">A01 to A50</span>). Parking across multiple bays or lanes is subject to towing.</p>
+            </div>
+            <div class="rule-box">
+                <span class="rule-index">09</span>
+                <h4>Non-Transferable Rights</h4>
+                <p>Parking permits are non-transferable and tied exclusively to the student identity and registered vehicle plate number.</p>
+            </div>
+            <div class="rule-box">
+                <span class="rule-index">10</span>
+                <h4>Security Instructions</h4>
+                <p>All patrons must comply with directions and speed controls issued by university parking security personnel and barrier operators.</p>
+            </div>
+            <div class="rule-box">
+                <span class="rule-index">11</span>
+                <h4>Advance Cancellations</h4>
+                <p>If you no longer require a parking space, cancel your booking in advance on the portal to release the slot for other students.</p>
+            </div>
+            <div class="rule-box">
+                <span class="rule-index">12</span>
+                <h4>Prohibited Areas</h4>
+                <p>Never block perimeter aisles, corner exits (Gates A, B, C, D), pedestrian walkways, or designated electric vehicle/security stalls.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Overstay Policy -->
+    <div class="rules-card mt-30 highlight-card-navy">
+        <div class="rules-card-head">
+            <span class="rule-num-icon">2</span>
+            <h2>Official Vehicle Overstay Policy</h2>
+        </div>
+
+        <div class="overstay-body">
+            <p class="overstay-intro">
+                A student must vacate their assigned bay and exit the facility before their scheduled reservation window concludes. 
+                For example, if you book a bay from <strong>10:00 AM to 12:00 PM</strong>, your vehicle must exit through one of the four gates by <strong>12:00 PM</strong>.
+            </p>
+
+            <div class="overstay-grid">
+                <div class="overstay-step">
+                    <div class="step-num">STEP 1</div>
+                    <h4>Gate Exit Logging</h4>
+                    <p>On-duty gate security logs actual departure timestamps when vehicles cross the barrier gate.</p>
+                </div>
+                <div class="overstay-step">
+                    <div class="step-num">STEP 2</div>
+                    <h4>Penalty Assessment</h4>
+                    <p>Overstays beyond a 5-minute buffer are assessed at <strong>₹50 per 30 minutes</strong> of excess occupancy.</p>
+                </div>
+                <div class="overstay-step">
+                    <div class="step-num">STEP 3</div>
+                    <h4>Offline Fee Settlement</h4>
+                    <p>Security officers enforce penalty collection and verify payment clearance before opening barrier gates.</p>
+                </div>
+                <div class="overstay-step">
+                    <div class="step-num">STEP 4</div>
+                    <h4>Disciplinary Record</h4>
+                    <p>Overstay incidents are recorded in your permanent violation log separately from no-show attendance strikes.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="rules-foot">
+        {% if session.get('user_id') %}
+            <a href="{{ url_for('home') }}" class="btn">Back to the app</a>
+        {% else %}
+            <a href="{{ url_for('login') }}" class="btn">Log in to book parking</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,91 +1,198 @@
 {% extends "base.html" %}
-{% block title %}Admin Dashboard{% endblock %}
+{% from "_macros.html" import page_head, stat, status_badge, table_search %}
+{% block title %}Admin Overview &mdash; Smart Parking{% endblock %}
 
 {% block content %}
-<div class="board-bar">
-    <div>
-        <div class="board-label">Admin overview</div>
-        <div class="board-date">Parking control panel</div>
-    </div>
-    <div class="board-stats">
-        <div class="board-stat">
-            <span class="value">{{ total_slots }}</span>
-            <span class="label">Parking slots</span>
-        </div>
-        <div class="board-stat">
-            <span class="value">{{ active_bookings }}</span>
-            <span class="label">Active bookings</span>
-        </div>
-    </div>
+{% set awaiting = bookings | selectattr('status', 'equalto', 'Active') | selectattr('booking_date', 'equalto', today_str) | list | reverse | list %}
+{% set flagged = students | selectattr('strike_count', 'gt', 0) | list %}
+{% set suspended = students | selectattr('account_status', 'equalto', 'Suspended') | list %}
+
+{% call page_head('Overview', 'What needs attention today, plus students, bookings and bays.', 'Admin') %}
+    <a href="{{ url_for('admin_overstay') }}" class="btn btn-secondary">Log a vehicle exit</a>
+{% endcall %}
+
+<div class="stat-row">
+    {{ stat(active_bookings, 'Active or parked', 'amber') }}
+    {{ stat(awaiting|length, 'Awaiting check-in today', 'ink') }}
+    {{ stat(students|length, 'Students', '') }}
+    {{ stat(suspended|length, 'Suspended', 'red' if suspended else '') }}
+    {{ stat(total_slots, 'Bays', 'green') }}
 </div>
 
-<h3>Add new slot</h3>
-<form method="POST" action="{{ url_for('add_slot') }}" class="inline-form admin-add-form">
-    <input type="text" name="slot_number" placeholder="Slot Number (e.g. C1)" required>
-    <select name="slot_type">
-        <option value="Car">Car</option>
-        <option value="Bike">Bike</option>
-    </select>
-    <input type="text" name="location" placeholder="Location (e.g. Block C)" required>
-    <button type="submit" class="btn btn-small">Add slot</button>
-</form>
-
-<h3>All parking slots</h3>
-<table class="data-table">
-    <thead>
-        <tr>
-            <th>Slot No.</th>
-            <th>Type</th>
-            <th>Location</th>
-            <th>Action</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for slot in slots %}
-        <tr>
-            <td class="mono">{{ slot.slot_number }}</td>
-            <td>{{ slot.slot_type }}</td>
-            <td>{{ slot.location }}</td>
-            <td>
-                <form method="POST" action="{{ url_for('delete_slot', slot_id=slot.id) }}"
-                      onsubmit="return confirm('Delete this slot? All its bookings will remain in history.');">
-                    <button type="submit" class="btn btn-small btn-danger">Delete</button>
-                </form>
-            </td>
-        </tr>
+<!-- 1. ACTION: check-ins waiting today -->
+<section class="card">
+    <div class="card-head">
+        <div>
+            <h2>Waiting for check-in today</h2>
+            <p>Confirm arrival when a student shows their pass. Unconfirmed bookings become no-shows 15 minutes after start.</p>
+        </div>
+    </div>
+    {% if awaiting|length == 0 %}
+        <p class="text-muted" style="padding:18px 22px;">Nobody is waiting right now.</p>
+    {% else %}
+    <ul class="task-list">
+        {% for b in awaiting %}
+        <li>
+            <div class="task-main">
+                <span class="task-bay">{{ b.slot_number }}</span>
+                <div class="task-text">
+                    <strong>{{ b.full_name }}</strong> · <span class="mono">{{ b.vehicle_number }}</span>
+                    <span class="cell-sub">{{ b.start_time|t12 }} – {{ b.end_time|t12 }} · arrive by <strong>{{ b.arrival_deadline|t12 }}</strong></span>
+                </div>
+            </div>
+            <form method="POST" action="{{ url_for('check_in', booking_id=b.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-small btn-success">Confirm arrival</button>
+            </form>
+        </li>
         {% endfor %}
-    </tbody>
-</table>
+    </ul>
+    {% endif %}
+</section>
 
-<h3>All bookings (history)</h3>
-<table class="data-table">
-    <thead>
-        <tr>
-            <th>Student</th>
-            <th>Email</th>
-            <th>Slot</th>
-            <th>Date</th>
-            <th>Time</th>
-            <th>Vehicle No.</th>
-            <th>Status</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for b in bookings %}
-        <tr>
-            <td>{{ b.full_name }}</td>
-            <td>{{ b.email }}</td>
-            <td class="mono">{{ b.slot_number }}</td>
-            <td class="mono">{{ b.booking_date }}</td>
-            <td class="mono">{{ b.start_time }}-{{ b.end_time }}</td>
-            <td>{{ b.vehicle_number }}</td>
-            <td>
-                <span class="badge {{ 'badge-green' if b.status == 'Active' else 'badge-grey' }}">
-                    {{ b.status }}
-                </span>
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<!-- 2. Students -->
+<div class="section-head">
+    <div>
+        <h2>Students</h2>
+        <p>{% if flagged %}{{ flagged|length }} with strikes{% else %}Nobody has strikes{% endif %} · sorted by most strikes first</p>
+    </div>
+    {{ table_search('studentsTable', 'Search name, email or plate') }}
+</div>
+<section class="card">
+    <div class="table-responsive">
+        <table class="data-table" id="studentsTable">
+            <thead>
+                <tr><th>Student</th><th>Plate</th><th>Strikes</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for st in students %}
+                <tr>
+                    <td><strong>{{ st.full_name }}</strong><span class="cell-sub">{{ st.email }}</span></td>
+                    <td class="mono">{{ st.vehicle_number or '—' }}</td>
+                    <td><span class="mono font-bold {% if st.strike_count >= 3 %}text-danger{% elif st.strike_count > 0 %}text-amber{% endif %}">{{ st.strike_count }}/3</span></td>
+                    <td>
+                        {% if st.account_status == 'Suspended' %}<span class="badge badge-red">Suspended</span>
+                        {% else %}<span class="badge badge-green">Active</span>{% endif %}
+                        {% if st.vehicle_banned == 1 %} <span class="badge badge-red">Vehicle banned</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if st.strike_count > 0 or st.account_status == 'Suspended' or st.vehicle_banned == 1 %}
+                        <form method="POST" action="{{ url_for('reset_strikes', user_id=st.id) }}" data-confirm="Reset strikes to 0 and lift any suspension for {{ st.full_name }}?">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-small btn-secondary">Reset &amp; reinstate</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr class="empty-row" {% if students %}hidden{% endif %}><td colspan="5">No matching students.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- 3. Bookings log -->
+<div class="section-head">
+    <div>
+        <h2>All bookings</h2>
+        <p>{{ bookings|length }} total, newest first</p>
+    </div>
+    <div class="filter-bar">
+        <div class="seg" id="statusFilter">
+            <button type="button" class="is-active" data-status="">All</button>
+            <button type="button" data-status="Active">Upcoming</button>
+            <button type="button" data-status="Checked-In">Parked</button>
+            <button type="button" data-status="No-Show">No-show</button>
+        </div>
+        {{ table_search('bookingsTable', 'Search student, bay or plate') }}
+    </div>
+</div>
+<section class="card">
+    <div class="table-responsive">
+        <table class="data-table" id="bookingsTable">
+            <thead>
+                <tr><th>Bay</th><th>Student</th><th>When</th><th>Plate</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+                {% for b in bookings %}
+                <tr data-status="{{ b.status }}">
+                    <td class="mono font-bold">{{ b.slot_number }}</td>
+                    <td><strong>{{ b.full_name }}</strong><span class="cell-sub">{{ b.email }}</span></td>
+                    <td>{{ b.booking_date|nice_date }}<span class="cell-sub">{{ b.start_time|t12 }} – {{ b.end_time|t12 }} ({{ b.duration_hours }}h){% if b.check_in_time %} · in {{ b.check_in_time.split(' ')[1][:5]|t12 }}{% endif %}</span></td>
+                    <td class="mono">{{ b.vehicle_number }}</td>
+                    <td>{{ status_badge(b.status) }}</td>
+                    <td>
+                        {% if b.status == 'Active' %}
+                        <form method="POST" action="{{ url_for('check_in', booking_id=b.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-small btn-success">Confirm arrival</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr class="empty-row" {% if bookings %}hidden{% endif %}><td colspan="6">No matching bookings.</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- 4. Bays -->
+<div class="section-head"><h2>Parking bays</h2></div>
+<details class="disclosure">
+    <summary>
+        <div>
+            <h3>Manage bays</h3>
+            <p>{{ slots|length }} bays · add a new bay or remove one</p>
+        </div>
+    </summary>
+    <div class="disclosure-body">
+        <form method="POST" action="{{ url_for('add_slot') }}" class="inline-add">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="field"><label for="newBay">Bay number</label><input id="newBay" type="text" name="slot_number" placeholder="e.g. A51" required></div>
+            <div class="field"><label for="newType">Type</label><select id="newType" name="slot_type"><option value="Car">Car</option><option value="Bike">Bike</option></select></div>
+            <div class="field"><label for="newLoc">Location</label><input id="newLoc" type="text" name="location" placeholder="e.g. North Row, Gate A" required></div>
+            <button type="submit" class="btn">Add bay</button>
+        </form>
+    </div>
+    <div class="disclosure-body flush" style="border-top:1px solid var(--border-subtle);">
+        <div style="padding:12px 22px;">{{ table_search('baysTable', 'Search bays') }}</div>
+        <div class="table-responsive">
+            <table class="data-table" id="baysTable">
+                <thead><tr><th>Bay</th><th>Type</th><th>Location</th><th></th></tr></thead>
+                <tbody>
+                    {% for slot in slots %}
+                    <tr>
+                        <td class="mono font-bold">{{ slot.slot_number }}</td>
+                        <td><span class="slot-type-badge">{{ slot.slot_type }}</span></td>
+                        <td>{{ slot.location }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('delete_slot', slot_id=slot.id) }}" data-confirm="Delete bay {{ slot.slot_number }}? Past booking history is kept.">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr class="empty-row" hidden><td colspan="4">No matching bays.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</details>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('#statusFilter button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        document.querySelectorAll('#statusFilter button').forEach(function (b) { b.classList.remove('is-active'); });
+        btn.classList.add('is-active');
+        const s = btn.dataset.status;
+        document.querySelectorAll('#bookingsTable tbody tr[data-status]').forEach(function (row) {
+            row.style.display = (!s || row.dataset.status === s) ? '' : 'none';
+        });
+    });
+});
+</script>
 {% endblock %}

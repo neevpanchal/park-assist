@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+{% from "_macros.html" import page_head %}
+{% block title %}Analytics &mdash; Smart Parking{% endblock %}
+
+{% block content %}
+{{ page_head('Analytics', 'How the lot is being used right now, this week and this month. Ask the assistant at the bottom for quick insights.', 'Admin') }}
+
+<nav class="seg" aria-label="Jump to section" style="margin-bottom:20px; flex-wrap:wrap;">
+    <a href="#now" class="is-active">Right now</a>
+    <a href="#weekly">Weekly</a>
+    <a href="#monthly">Monthly</a>
+    <a href="#ask">Ask AI</a>
+</nav>
+
+<div class="analytics-section" id="now">
+    <div class="section-title-bar">
+        <h3>Right now</h3>
+        <span class="live-pill"><span class="live-pulse"></span> LIVE</span>
+    </div>
+
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <span class="kpi-title">Total Spaces</span>
+            <span class="kpi-value mono">{{ realtime.total_spaces }}</span>
+            <span class="kpi-sub">Bays A01 &ndash; A50</span>
+        </div>
+        <div class="kpi-card kpi-highlight-amber">
+            <span class="kpi-title">Currently Occupied</span>
+            <span class="kpi-value mono">{{ realtime.occupied_now }}</span>
+            <span class="kpi-sub">{{ realtime.utilization_rate }}% of lot capacity</span>
+        </div>
+        <div class="kpi-card kpi-highlight-green">
+            <span class="kpi-title">Available Spaces</span>
+            <span class="kpi-value mono">{{ realtime.available_now }}</span>
+            <span class="kpi-sub">Open bays right now</span>
+        </div>
+        <div class="kpi-card">
+            <span class="kpi-title">Active Today</span>
+            <span class="kpi-value mono">{{ realtime.active_today }}</span>
+            <span class="kpi-sub">Bookings for {{ today_str }}</span>
+        </div>
+        <div class="kpi-card">
+            <span class="kpi-title">Upcoming Bookings</span>
+            <span class="kpi-value mono">{{ realtime.upcoming_bookings }}</span>
+            <span class="kpi-sub">Future scheduled</span>
+        </div>
+        <div class="kpi-card">
+            <span class="kpi-title">Cancelled Total</span>
+            <span class="kpi-value mono text-muted">{{ realtime.cancelled_bookings }}</span>
+            <span class="kpi-sub">Released durations</span>
+        </div>
+        <div class="kpi-card kpi-highlight-red">
+            <span class="kpi-title">No-Show Bookings</span>
+            <span class="kpi-value mono text-danger">{{ realtime.noshow_bookings }}</span>
+            <span class="kpi-sub">Exceeded 15m grace</span>
+        </div>
+        <div class="kpi-card">
+            <span class="kpi-title">Registered Students</span>
+            <span class="kpi-value mono">{{ realtime.total_students }}</span>
+            <span class="kpi-sub">Verified accounts</span>
+        </div>
+        <div class="kpi-card kpi-highlight-red">
+            <span class="kpi-title">Suspended Accounts</span>
+            <span class="kpi-value mono text-danger">{{ realtime.suspended_accounts }}</span>
+            <span class="kpi-sub">&ge; 3 strikes limit</span>
+        </div>
+        <div class="kpi-card kpi-highlight-red">
+            <span class="kpi-title">Banned Vehicles</span>
+            <span class="kpi-value mono text-danger">{{ realtime.banned_vehicles }}</span>
+            <span class="kpi-sub">Disciplinary bans</span>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     SECTION B: WEEKLY REPORTS & DISTRIBUTION CHARTS
+     ========================================================= -->
+<div class="analytics-section mt-30" id="weekly">
+    <div class="section-title-bar">
+        <div>
+            <h3>Weekly report</h3>
+            <p class="section-sub">Bookings, busy hours and days, cancellations and no-shows.</p>
+        </div>
+        <div class="filter-group">
+            <a href="{{ url_for('admin_analytics', week=0) }}" class="btn btn-small btn-secondary {% if week_offset == 0 %}btn-active-date{% endif %}">This Week</a>
+            <a href="{{ url_for('admin_analytics', week=-1) }}" class="btn btn-small btn-secondary {% if week_offset == -1 %}btn-active-date{% endif %}">Last Week</a>
+            <a href="{{ url_for('admin_analytics', week=-2) }}" class="btn btn-small btn-secondary {% if week_offset == -2 %}btn-active-date{% endif %}">2 Weeks Ago</a>
+        </div>
+    </div>
+
+    <div class="stats-card-banner">
+        <div class="banner-stat">
+            <span class="val mono">{{ weekly.total_bookings }}</span>
+            <span class="lbl">Total Reservations</span>
+        </div>
+        <div class="banner-stat">
+            <span class="val mono">{{ weekly.total_booked_hours }} hrs</span>
+            <span class="lbl">Total Booked Hours</span>
+        </div>
+        <div class="banner-stat">
+            <span class="val mono">{{ weekly.avg_duration }} hrs</span>
+            <span class="lbl">Avg Booking Duration</span>
+        </div>
+        <div class="banner-stat">
+            <span class="val mono">{{ weekly.utilization_pct }}%</span>
+            <span class="lbl">Weekly Utilization</span>
+        </div>
+        <div class="banner-stat">
+            <span class="val mono text-amber">{{ weekly.cancel_pct }}%</span>
+            <span class="lbl">Cancellation Rate</span>
+        </div>
+        <div class="banner-stat">
+            <span class="val mono text-danger">{{ weekly.noshow_pct }}%</span>
+            <span class="lbl">No-Show Rate</span>
+        </div>
+        <div class="banner-stat">
+            <span class="val mono text-danger">{{ weekly.strikes_issued }}</span>
+            <span class="lbl">Strikes Issued</span>
+        </div>
+    </div>
+
+    <!-- Charts & Breakdown Grid -->
+    <div class="analytics-two-col mt-20">
+        <!-- Busiest Hours Breakdown -->
+        <div class="chart-card">
+            <h4>Busiest Hours of the Day (07:00 &ndash; 21:00)</h4>
+            <p class="chart-sub">Hourly distribution of reserved parking bays:</p>
+            <div class="bar-chart-container">
+                {% set max_h = [weekly.hour_counts.values()|max, 1]|max %}
+                {% for hour_str, count in weekly.hour_counts.items() %}
+                <div class="bar-col">
+                    <div class="bar-track">
+                        <div class="bar-fill" style="height: {{ (count / max_h * 100)|round }}%;">
+                            {% if count > 0 %}<span class="bar-val">{{ count }}</span>{% endif %}
+                        </div>
+                    </div>
+                    <span class="bar-label">{{ hour_str.split(':')[0] }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="chart-legend">
+                <span>Operating 7:00 AM to 9:00 PM (14 hourly intervals)</span>
+            </div>
+        </div>
+
+        <!-- Busiest Days & Top Slots -->
+        <div class="chart-card">
+            <h4>Busiest Days of the Week</h4>
+            <div class="days-list">
+                {% set max_d = [weekly.day_counts.values()|max, 1]|max %}
+                {% for day_name, count in weekly.day_counts.items() %}
+                <div class="day-row">
+                    <span class="day-name">{{ day_name }}</span>
+                    <div class="day-bar-track">
+                        <div class="day-bar-fill" style="width: {{ (count / max_d * 100)|round }}%;"></div>
+                    </div>
+                    <span class="day-count mono">{{ count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <h4 class="mt-20">Most Booked Parking Bays</h4>
+            <div class="top-slots-list">
+                {% if weekly.top_slots|length == 0 %}
+                    <p class="text-muted text-sm italic">No bookings recorded during this period.</p>
+                {% else %}
+                    {% for slot_code, scount in weekly.top_slots %}
+                    <div class="top-slot-item">
+                        <span class="slot-badge-code mono">{{ slot_code }}</span>
+                        <span class="slot-count-text">{{ scount }} reservation{% if scount > 1 %}s{% endif %}</span>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     SECTION C: MONTHLY PERFORMANCE & COMPARISONS
+     ========================================================= -->
+<div class="analytics-section mt-30" id="monthly">
+    <div class="section-title-bar">
+        <div>
+            <h3>Monthly report</h3>
+            <p class="section-sub">This month compared with the month before.</p>
+        </div>
+        <form method="GET" action="{{ url_for('admin_analytics') }}#monthly" class="inline-filter-form">
+            <input type="hidden" name="week" value="{{ week_offset }}">
+            <label class="sr-only" for="monthSel">Month</label>
+            <select name="month" id="monthSel" class="date-input" onchange="this.form.submit()">
+                {% for name in ['January','February','March','April','May','June','July','August','September','October','November','December'] %}
+                    <option value="{{ loop.index }}" {% if loop.index == selected_month %}selected{% endif %}>{{ name }}</option>
+                {% endfor %}
+            </select>
+            <label class="sr-only" for="yearSel">Year</label>
+            <input type="number" name="year" id="yearSel" class="date-input" value="{{ selected_year }}" style="width: 90px;" onchange="this.form.submit()">
+        </form>
+    </div>
+
+    <div class="comparison-grid">
+        <div class="comparison-card">
+            <span class="comp-label">Total Reservations</span>
+            <div class="comp-figures">
+                <span class="comp-current mono">{{ monthly.current.total_bookings }}</span>
+                <span class="comp-prev text-muted mono">Prev: {{ monthly.previous.total_bookings }}</span>
+            </div>
+            <span class="comp-change {% if monthly.comparison.bookings_change_pct >= 0 %}text-green{% else %}text-danger{% endif %}">
+                {% if monthly.comparison.bookings_change_pct >= 0 %}&uarr;{% else %}&darr;{% endif %} {{ monthly.comparison.bookings_change_pct }}% vs last month
+            </span>
+        </div>
+
+        <div class="comparison-card">
+            <span class="comp-label">Total Booked Hours</span>
+            <div class="comp-figures">
+                <span class="comp-current mono">{{ monthly.current.total_hours }}h</span>
+                <span class="comp-prev text-muted mono">Prev: {{ monthly.previous.total_hours }}h</span>
+            </div>
+            <span class="comp-change {% if monthly.comparison.hours_change_pct >= 0 %}text-green{% else %}text-danger{% endif %}">
+                {% if monthly.comparison.hours_change_pct >= 0 %}&uarr;{% else %}&darr;{% endif %} {{ monthly.comparison.hours_change_pct }}% vs last month
+            </span>
+        </div>
+
+        <div class="comparison-card">
+            <span class="comp-label">Lot Utilization %</span>
+            <div class="comp-figures">
+                <span class="comp-current mono">{{ monthly.current.utilization_pct }}%</span>
+                <span class="comp-prev text-muted mono">Prev: {{ monthly.previous.utilization_pct }}%</span>
+            </div>
+            <span class="comp-change {% if monthly.comparison.utilization_change >= 0 %}text-green{% else %}text-muted{% endif %}">
+                {% if monthly.comparison.utilization_change >= 0 %}&uarr; +{% else %}&darr; {% endif %}{{ monthly.comparison.utilization_change }}% pts
+            </span>
+        </div>
+
+        <div class="comparison-card">
+            <span class="comp-label">No-Show Incident Rate</span>
+            <div class="comp-figures">
+                <span class="comp-current mono text-danger">{{ monthly.current.noshow_pct }}%</span>
+                <span class="comp-prev text-muted mono">Prev: {{ monthly.previous.noshow_pct }}%</span>
+            </div>
+            <span class="comp-change {% if monthly.comparison.noshow_change <= 0 %}text-green{% else %}text-danger{% endif %}">
+                {% if monthly.comparison.noshow_change <= 0 %}&darr; Improved by {% else %}&uarr; Increased by {% endif %}{{ monthly.comparison.noshow_change|abs }}% pts
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================
+     SECTION D: AI-GENERATED INSIGHTS & INTERACTIVE Q&A
+     ========================================================= -->
+<div class="analytics-section mt-30" id="ask">
+    <div class="ai-terminal-card">
+        <div class="ai-terminal-header">
+            <div class="ai-brand-group">
+                <span class="ai-sparkle">✨</span>
+                <div>
+                    <h3>Ask about your parking data</h3>
+                    <p class="ai-sub">Tap a question or type your own. Answers use the live booking records.</p>
+                </div>
+            </div>
+            <span class="ai-engine-pill" id="aiEngineLabel">Engine: Active Heuristic / Gemini</span>
+        </div>
+
+        <!-- Preset Clickable Questions -->
+        <div class="preset-queries">
+            <span class="preset-title">Quick Analysis Prompts:</span>
+            <button type="button" class="preset-btn" onclick="askAiQuestion('Which parking hours are the busiest?')">
+                🕒 Which parking hours are the busiest?
+            </button>
+            <button type="button" class="preset-btn" onclick="askAiQuestion('Which parking spaces are used the most?')">
+                🅿️ Which parking spaces are used the most?
+            </button>
+            <button type="button" class="preset-btn" onclick="askAiQuestion('What percentage of parking capacity is being utilized?')">
+                📊 What percentage of parking capacity is being utilized?
+            </button>
+            <button type="button" class="preset-btn" onclick="askAiQuestion('Are no-shows increasing?')">
+                ⚠️ Are no-shows increasing?
+            </button>
+            <button type="button" class="preset-btn" onclick="askAiQuestion('Which days have the highest parking demand?')">
+                📅 Which days have the highest parking demand?
+            </button>
+            <button type="button" class="preset-btn" onclick="askAiQuestion('What changes would improve parking utilization?')">
+                💡 What changes would improve parking utilization?
+            </button>
+        </div>
+
+        <!-- Interactive Question Input -->
+        <div class="ai-input-row">
+            <input type="text" id="aiCustomInput" placeholder="Type a custom operational or statistical question..." onkeydown="if(event.key==='Enter') submitAiQuery()">
+            <button type="button" class="btn btn-small" onclick="submitAiQuery()">Analyze &rarr;</button>
+        </div>
+
+        <!-- AI Output Window -->
+        <div class="ai-output-window" id="aiOutputWindow">
+            <div class="ai-welcome-msg" id="aiPlaceholder">
+                🤖 Click any prompt above or type a custom question to generate real-time AI insights based on active database records.
+            </div>
+            <div id="aiLoadingIndicator" style="display: none;" class="ai-loading">
+                <span class="spinner"></span> Synthesizing database metrics and generating operational insights...
+            </div>
+            <div id="aiResponseContainer" style="display: none;" class="ai-response-box">
+                <div class="ai-source-badge" id="aiSourceBadge">Source: AI Analytics Engine</div>
+                <div class="ai-text-body" id="aiTextBody"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function askAiQuestion(q) {
+        document.getElementById('aiCustomInput').value = q;
+        submitAiQuery();
+    }
+
+    function submitAiQuery() {
+        const input = document.getElementById('aiCustomInput');
+        const query = input.value.trim();
+        if (!query) return;
+
+        const placeholder = document.getElementById('aiPlaceholder');
+        const loader = document.getElementById('aiLoadingIndicator');
+        const resBox = document.getElementById('aiResponseContainer');
+        const resText = document.getElementById('aiTextBody');
+        const sourceBadge = document.getElementById('aiSourceBadge');
+
+        placeholder.style.display = 'none';
+        resBox.style.display = 'none';
+        loader.style.display = 'flex';
+
+        fetch('/api/ai-insights', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ question: query })
+        })
+        .then(response => response.json())
+        .then(data => {
+            loader.style.display = 'none';
+            if (data.error) {
+                resBox.style.display = 'block';
+                sourceBadge.innerText = 'Error';
+                resText.innerHTML = '<span class="text-danger">' + data.error + '</span>';
+            } else {
+                resBox.style.display = 'block';
+                sourceBadge.innerText = 'Source: ' + data.source;
+                // Basic markdown formatting
+                let formatted = data.answer
+                    .replace(/\n\n/g, '<br><br>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/- (.*?)(<br>|$)/g, '&bull; $1<br>');
+                resText.innerHTML = formatted;
+            }
+        })
+        .catch(err => {
+            loader.style.display = 'none';
+            resBox.style.display = 'block';
+            sourceBadge.innerText = 'Network Notice';
+            resText.innerHTML = '<span class="text-danger">Request failed. Please check server status.</span>';
+        });
+    }
+</script>
+{% endblock %}

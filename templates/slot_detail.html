@@ -1,38 +1,177 @@
 {% extends "base.html" %}
-{% block title %}{{ slot.slot_number }} - Time Slots{% endblock %}
+{% block title %}Book Bay {{ slot.slot_number }} &mdash; Smart Parking{% endblock %}
 
 {% block content %}
-<a href="{{ url_for('dashboard', date=selected_date) }}" class="back-link">&larr; Back to all slots</a>
+{% set available_cells = cells | selectattr('status', 'equalto', 'Available') | list %}
+{% set suspended = user and (user.account_status == 'Suspended' or user.vehicle_banned == 1) %}
 
-<h2>Slot {{ slot.slot_number }} &mdash; {{ slot.slot_type }} spot in {{ slot.location }}</h2>
-<p class="slot-meta" style="margin-bottom: 20px;">Showing hourly availability for <strong>{{ selected_date }}</strong></p>
+<a href="{{ url_for('dashboard', date=selected_date) }}" class="back-link">&larr; All bays</a>
 
-<div class="time-list">
-    {% for cell in cells %}
-    <div class="time-row">
-        <div class="time-row-info">
-            <span class="led-dot {{ 'led-green' if cell.status == 'Available' else ('led-red' if cell.status == 'Booked' else 'led-grey') }}"></span>
-            <span class="time-range">{{ cell.display }}</span>
-            <span class="badge {{ 'badge-green' if cell.status == 'Available' else ('badge-red' if cell.status == 'Booked' else 'badge-grey') }}">
-                {{ cell.status }}
-            </span>
+<ol class="steps" aria-label="Booking progress">
+    <li class="is-done">Choose a day</li>
+    <li class="is-done">Pick a bay</li>
+    <li class="is-current">Choose your hours</li>
+</ol>
+
+<div class="bay-hero">
+    <span class="bay-hero-code">{{ slot.slot_number }}</span>
+    <div>
+        <h1>{% if slot.slot_type == 'Bike' %}🏍️{% else %}🚗{% endif %} {{ slot.slot_type }} bay · {{ slot.location }}</h1>
+        <p><strong>{{ selected_date|nice_date }}</strong> · {{ available_cells|length }} of {{ cells|length }} hours free</p>
+    </div>
+</div>
+
+{% if suspended %}
+<div class="callout callout-danger">
+    <span class="callout-icon">!</span>
+    <div><strong>Booking is paused on your account</strong> because of 3 no-show strikes. Please visit the campus parking office.</div>
+</div>
+{% endif %}
+
+<div class="book-layout">
+    <!-- Hours -->
+    <section class="card card-pad">
+        <h2 style="font-size:18px; margin-bottom:4px;">1. Choose your hours</h2>
+        <p class="field-hint" style="margin-bottom:4px;"><strong id="tapHint" style="color:var(--ink);">Tap the hour you want to arrive.</strong></p>
+        <p class="field-hint" style="margin-bottom:14px;">Grey hours have already passed. "Taken" hours are booked by someone else.</p>
+
+        <div class="hour-grid" id="hourGrid">
+            {% for cell in cells %}
+                {% set st = cell.status %}
+                <button type="button" class="hour-chip {% if st == 'Booked' %}is-booked{% elif st == 'Expired' %}is-past{% endif %}"
+                        data-start="{{ cell.start }}" {% if st != 'Available' %}disabled{% endif %}
+                        aria-label="{{ cell.start|t12 }} to {{ cell.end|t12 }}: {{ 'free' if st == 'Available' else ('taken' if st == 'Booked' else 'passed') }}">
+                    <span class="h-time">{{ cell.start|t12 }}</span>
+                    <span class="h-state">{% if st == 'Available' %}Free{% elif st == 'Booked' %}Taken{% else %}Passed{% endif %}</span>
+                </button>
+            {% endfor %}
         </div>
+    </section>
 
-        {% if cell.status == 'Available' %}
-        <form method="POST" action="{{ url_for('book_slot') }}" class="inline-form">
+    <!-- Confirm -->
+    <section class="card card-pad">
+        <h2 style="font-size:18px; margin-bottom:14px;">2. Confirm your booking</h2>
+
+        {% if available_cells|length == 0 %}
+            <div class="callout callout-warn">
+                <span class="callout-icon">i</span>
+                <div>No free hours left on this bay for {{ selected_date|nice_date }}. Try another bay or another day.</div>
+            </div>
+            <a href="{{ url_for('dashboard', date=selected_date) }}" class="btn btn-secondary btn-full">&larr; Back to all bays</a>
+        {% else %}
+        <form method="POST" action="{{ url_for('book_slot') }}" id="bookForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="slot_id" value="{{ slot.id }}">
             <input type="hidden" name="booking_date" value="{{ selected_date }}">
-            <input type="hidden" name="start_time" value="{{ cell.start }}">
-            <input type="hidden" name="end_time" value="{{ cell.end }}">
-            <input type="text" name="vehicle_number" placeholder="Vehicle No." required>
-            <button type="submit" class="btn btn-small">Book</button>
+
+            <div class="field-row">
+                <div class="field">
+                    <label for="start_time">Start</label>
+                    <select name="start_time" id="start_time" required>
+                        {% for cell in available_cells %}
+                            <option value="{{ cell.start }}">{{ cell.start|t12 }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="duration_hours">How long</label>
+                    <select name="duration_hours" id="duration_hours" required>
+                        <option value="1">1 hour</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="field">
+                <label for="vehicle_number">Vehicle number plate</label>
+                <input type="text" name="vehicle_number" id="vehicle_number" value="{{ user.vehicle_number or '' }}" required placeholder="e.g. GJ-05-AB-1234" autocomplete="off" style="text-transform:uppercase;">
+            </div>
+
+            <div class="summary-box" aria-live="polite">
+                <div class="sum-main" id="sumWindow">--</div>
+                <div class="sum-sub" id="sumMeta">Bay {{ slot.slot_number }} · {{ selected_date|nice_date }}</div>
+                <div class="sum-deadline"><span>Arrive at the gate by</span><strong id="sumDeadline">--</strong></div>
+            </div>
+
+            <button type="submit" class="btn btn-lg btn-full" {% if suspended %}disabled{% endif %}>Confirm booking</button>
+            <p class="field-hint" style="text-align:center; margin-top:10px;">You can cancel any time before your start time from <a href="{{ url_for('my_bookings') }}" style="text-decoration:underline;">My Bookings</a>.</p>
         </form>
-        {% else %}
-        <button class="btn btn-small btn-disabled" disabled>
-            {{ 'Already booked' if cell.status == 'Booked' else 'Time passed' }}
-        </button>
         {% endif %}
-    </div>
-    {% endfor %}
+    </section>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const cells = {{ cells|tojson }};
+    const startSel = document.getElementById('start_time');
+    const durSel = document.getElementById('duration_hours');
+    if (!startSel) return;
+
+    const hourOf = s => parseInt(s.split(':')[0], 10);
+    const fmt = h => { const p = h < 12 ? 'AM' : 'PM'; const d = h % 12 === 0 ? 12 : h % 12; return d + ':00 ' + p; };
+    const fmtMin = (h, m) => { const p = h < 12 ? 'AM' : 'PM'; const d = h % 12 === 0 ? 12 : h % 12; return d + ':' + String(m).padStart(2, '0') + ' ' + p; };
+
+    function maxDuration(startH) {
+        let max = 21 - startH;
+        for (let h = startH + 1; h < 21; h++) {
+            const c = cells.find(x => hourOf(x.start) === h);
+            if (c && c.status !== 'Available') { max = h - startH; break; }
+        }
+        return Math.max(1, max);
+    }
+
+    function render() {
+        const startH = hourOf(startSel.value);
+        const max = maxDuration(startH);
+        const want = Math.min(parseInt(durSel.value || '1', 10), max);
+        durSel.innerHTML = '';
+        for (let d = 1; d <= max; d++) {
+            const o = document.createElement('option');
+            o.value = d; o.textContent = d + (d === 1 ? ' hour' : ' hours') + ' (until ' + fmt(startH + d) + ')';
+            if (d === want) o.selected = true;
+            durSel.appendChild(o);
+        }
+        const dur = parseInt(durSel.value, 10);
+        document.getElementById('sumWindow').textContent = fmt(startH) + ' – ' + fmt(startH + dur) + ' · ' + dur + (dur === 1 ? ' hour' : ' hours');
+        document.getElementById('sumDeadline').textContent = fmtMin(startH, 15);
+
+        document.querySelectorAll('.hour-chip').forEach(function (chip) {
+            const h = hourOf(chip.dataset.start);
+            chip.classList.toggle('is-selected', h === startH);
+            chip.classList.toggle('in-range', h > startH && h < startH + dur);
+        });
+    }
+
+    // Two-tap selection: 1st tap = start hour, 2nd tap = last hour you need.
+    const hint = document.getElementById('tapHint');
+    let picking = 'start';
+    function setHint() {
+        hint.textContent = picking === 'start'
+            ? 'Tap the hour you want to arrive.'
+            : 'Now tap the last hour you need (or tap Confirm for just 1 hour).';
+    }
+    document.querySelectorAll('.hour-chip:not([disabled])').forEach(function (chip) {
+        chip.addEventListener('click', function () {
+            const h = hourOf(chip.dataset.start);
+            const startH = hourOf(startSel.value);
+            if (picking === 'end' && h >= startH && h < startH + maxDuration(startH)) {
+                durSel.value = String(h - startH + 1);
+                picking = 'start';
+            } else {
+                startSel.value = chip.dataset.start;
+                durSel.value = '1';
+                picking = 'end';
+            }
+            render();
+            setHint();
+        });
+    });
+    setHint();
+
+    startSel.addEventListener('change', render);
+    durSel.addEventListener('change', render);
+    render();
+})();
+</script>
 {% endblock %}

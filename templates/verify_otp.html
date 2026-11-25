@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Verify Email &mdash; Smart Parking{% endblock %}
+
+{% block body %}
+<div class="auth-page">
+    <div class="auth-panel">
+        <span class="brand-mark">P</span>
+        <h1>Verify Your Student Email</h1>
+        <p class="tagline">Enter the 6-digit verification code sent to your registered email address to activate your parking account.</p>
+
+        <div class="auth-stats">
+            <div class="auth-stat">
+                <span class="value">5 min</span>
+                <span class="label">Code Expiration</span>
+            </div>
+            <div class="auth-stat">
+                <span class="value">5</span>
+                <span class="label">Max Attempts</span>
+            </div>
+            <div class="auth-stat">
+                <span class="value">60s</span>
+                <span class="label">Resend Cooldown</span>
+            </div>
+        </div>
+
+        <div class="auth-stripe"></div>
+    </div>
+
+    <div class="auth-form-side">
+        <div style="width: 100%; max-width: 420px;">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div class="flash-stack">
+                    {% for category, message in messages %}
+                        <div class="flash flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            <div class="form-card">
+                <h2>Email Verification</h2>
+                <p class="form-subtext">Verification for: <strong class="mono text-ink">{{ email }}</strong></p>
+
+                {% if demo_otp %}
+                <div class="demo-otp-banner">
+                    <span class="demo-badge">LOCAL / DEMO MODE CODE</span>
+                    <p class="demo-hint">Since SMTP is not configured with a real Google App Password in <code>.env</code>, your 6-digit code is displayed right here:</p>
+                    <div class="demo-code-box">
+                        <span class="mono">{{ demo_otp }}</span>
+                    </div>
+                    <p class="demo-subhint">&darr; Enter this code in the input box below &darr;</p>
+                </div>
+                {% endif %}
+
+                <form method="POST" action="{{ url_for('verify_otp') }}" class="otp-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                    <label for="otp_code">Enter 6-Digit Code</label>
+                    <input type="text" name="otp_code" id="otp_code" class="otp-input" maxlength="6" pattern="[0-9]{6}" required placeholder="123456" autofocus autocomplete="one-time-code">
+
+                    <!-- Expiration Countdown -->
+                    <div class="otp-timer-box">
+                        <span class="timer-label">Code expires in:</span>
+                        <span id="countdownTimer" class="mono font-bold text-amber">05:00</span>
+                    </div>
+
+                    <button type="submit" class="btn">Verify & Activate Account</button>
+                </form>
+
+                <!-- Resend OTP Form with Cooldown -->
+                <form method="POST" action="{{ url_for('resend_otp') }}" class="resend-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" id="btnResend" class="btn-text" disabled>
+                        Resend Code in (<span id="resendCount">60</span>s)
+                    </button>
+                </form>
+
+                <p class="form-footer">
+                    Entered the wrong email? <a href="{{ url_for('register') }}">Register again</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 5-minute code expiration timer
+    let totalSecs = 300;
+    const timerElem = document.getElementById('countdownTimer');
+    const timerInterval = setInterval(function() {
+        totalSecs--;
+        if (totalSecs <= 0) {
+            clearInterval(timerInterval);
+            timerElem.innerText = 'EXPIRED';
+            timerElem.style.color = '#E1484D';
+        } else {
+            const mins = String(Math.floor(totalSecs / 60)).padStart(2, '0');
+            const secs = String(totalSecs % 60).padStart(2, '0');
+            timerElem.innerText = mins + ':' + secs;
+        }
+    }, 1000);
+
+    // 60-second resend cooldown timer
+    let resendSecs = 60;
+    const resendBtn = document.getElementById('btnResend');
+    const resendCount = document.getElementById('resendCount');
+
+    const resendInterval = setInterval(function() {
+        resendSecs--;
+        if (resendSecs <= 0) {
+            clearInterval(resendInterval);
+            resendBtn.disabled = false;
+            resendBtn.innerText = 'Resend Verification Code';
+            resendBtn.classList.add('btn-text-active');
+        } else {
+            resendCount.innerText = resendSecs;
+        }
+    }, 1000);
+</script>
+{% endblock %}

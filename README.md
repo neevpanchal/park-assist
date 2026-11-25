@@ -1,191 +1,163 @@
-# Smart Parking Management System (University Project)
+# Smart University Parking Management System (Upgraded Edition)
 
-A web-based system that lets students view parking slots, book a specific
-**1-hour time slot** (7:00 AM to 9:00 PM) on a chosen date, cancel a booking,
-and lets an admin manage slots and see all booking history.
+A full-stack, enterprise-grade university parking reservation and analytics platform built with Python, Flask, SQLite, and Jinja2. The system features a realistic garage-themed navy blue and amber reader-board design, an interactive 50-bay pictorial square parking map with 4 corner exits, email OTP verification, automated 15-minute arrival grace period enforcement with a 3-strike penalty system, multi-hour consecutive booking, and an Admin AI Parking Analytics dashboard.
 
 ---
 
-## 1. Tech Stack (keep this simple when explaining)
+## 1. Tech Stack & Architecture
 
-| Layer          | Technology                          |
-|----------------|--------------------------------------|
-| Backend        | Python + Flask (a lightweight web framework) |
-| Database       | SQLite (a single-file database, built into Python) |
-| Frontend       | HTML, CSS, Jinja2 templates (no JavaScript frameworks) |
-| Password Security | Werkzeug's `generate_password_hash` / `check_password_hash` |
-
-**Why these choices?**
-- Flask is simple enough to explain route-by-route to a teacher.
-- SQLite needs no separate installation or server — the whole database is one file (`parking.db`).
-- Jinja2 templating lets Python data (like the list of slots) be displayed directly in HTML using `{{ }}` and `{% %}`.
+| Layer | Technology | Purpose |
+|---|---|---|
+| **Backend** | Python + Flask | Lightweight WSGI web backend with clean, viva-defensible modular design |
+| **Database** | SQLite (`parking.db`) | Zero-configuration single-file relational database with strict foreign keys |
+| **Frontend** | HTML5, CSS3, Jinja2 | Semantic responsive UI styled with parking garage signage design (no bloated heavy JS frameworks) |
+| **Security & Auth** | Werkzeug Hashing + CSRF | Password and OTP hashing (`generate_password_hash`), session CSRF verification |
+| **Email Service** | Python `smtplib` + MIME | Real SMTP verification with automatic fallback Demo Mode |
+| **AI Analytics** | Gemini API + Built-in Heuristic | Live LLM insight synthesis with offline SQLite statistical heuristic fallback |
 
 ---
 
-## 2. Project Structure
+## 2. Key Upgraded Features
+
+### 1. Email OTP Verification During Registration
+- Multi-step registration flow: Student enters Name, University Email, Password, and Vehicle Plate Number.
+- Secure 6-digit cryptographically generated OTP (`secrets.randbelow`).
+- OTPs are hashed before saving to SQLite with a **5-minute expiration** window.
+- Rate-limited: Maximum 5 verification attempts per code; 60-second cooldown on OTP resend requests.
+- **Offline / Viva Demo Mode**: If live SMTP credentials are not configured, OTP is automatically printed in server logs and displayed in a demo flash banner.
+
+### 2. 15-Minute Arrival Grace Period & Strike Enforcement
+- Every reservation automatically calculates an arrival deadline: **Start Time + 15 minutes** (e.g. 09:00 booking &rarr; 09:15 deadline).
+- Students verify their physical arrival via the **Check In** button on their "My Bookings" page (or gate security can verify them).
+- **Automated No-Show Detection**: Whenever reservations are queried, overdue un-checked-in bookings are marked as `No-Show` and the slot is immediately released for other patrons.
+- **Three-Strike Penalty Escalation**:
+  - Each no-show adds **1 strike** to the student's account.
+  - Striking is accompanied by automated email alert notification.
+  - At **3 strikes**, the student's booking privileges are suspended and their vehicle plate is banned from future reservations.
+  - Administrators can review the permanent violation log and manually lift suspensions/reset strikes.
+
+### 3. Multi-Hour Consecutive Booking System
+- Students can book between **1 and 14 consecutive hours** in a single unified reservation (operating hours: 7:00 AM to 9:00 PM).
+- Dynamic client-side and server-side preview calculates total hours, end time, and arrival deadline.
+- Server performs interval collision detection to prevent double-booking across any hour in the duration.
+- Cancellation releases the entire multi-hour duration back into public inventory.
+
+### 4. Interactive Pictorial 50-Space Parking Map
+- **Layout**: Square-shaped parking garage facility containing **exactly 50 physical parking bays** (`A01` to `A50`).
+- **4 Corner Exits**:
+  - Exit 1 (Gate A &bull; North-West)
+  - Exit 2 (Gate B &bull; North-East)
+  - Exit 3 (Gate C &bull; South-West)
+  - Exit 4 (Gate D &bull; South-East)
+- **Driving Aisles**: One-way perimeter lanes and central driving aisles with directional arrows and road markings clearly separating traffic from bays.
+- **Live LED Indicators**:
+  - 🟢 **Green LED**: Fully available.
+  - 🟡 **Amber LED**: Partially booked today.
+  - 🔴 **Red LED**: Fully occupied (14 hours booked).
+- Clicking any space opens an interactive multi-hour reservation drawer.
+- Supports both **Square Map View** and **Grid Cards View** with a one-click toggle.
+
+### 5. Rule Book & Overstay Management
+- Prominently placed **RULE BOOK** button in the top navigation bar opens an interactive modal or dedicated `/rules` page.
+- Lists the **12 Official Facility Regulations**.
+- **Overstay Policy**:
+  - Vehicles must vacate the facility before their booked period ends.
+  - Campus security interface at `/admin/overstay` records actual vehicle exit timestamps.
+  - Overstays are assessed at **₹50 per 30 minutes** of excess occupancy.
+  - Offline gate staff collect payment before opening the exit barrier.
+  - Overstay violations are maintained separately from no-show attendance strikes.
+
+### 6. Admin AI Parking Analytics Dashboard
+- Dedicated `/admin/analytics` dashboard providing:
+  - **A. Real-Time Fleet KPIs**: 10 live metrics including total bays, occupied now, free bays, utilization rate, active bookings, cancellations, no-shows, registered students, suspensions, and banned vehicles.
+  - **B. Weekly Reports**: Total reservations, total hours, average duration, weekly utilization %, cancellation %, no-show %, strikes issued, top-booked bays, day-of-week demand breakdown, and 14-hour distribution bar chart. Filterable across past weeks.
+  - **C. Monthly Reports & MoM Comparison**: Longitudinal monthly performance with month-over-month percentage changes.
+  - **D. Interactive AI Terminal ("Ask AI Analytics")**:
+    - Pre-populated prompt buttons for standard operational questions (busiest hours, most used spaces, capacity utilization, no-show trends, peak demand days, and optimization advice).
+    - Free-form analytical question input field.
+    - Powered by Google Gemini API if `GEMINI_API_KEY` is provided; seamlessly falls back to a built-in SQLite data-driven heuristic reasoning engine if no key is set.
+
+---
+
+## 3. Project File Structure
 
 ```
-parking_system/
+python project/
 │
-├── app.py                 # Main Flask app - all routes/URLs live here
-├── database.py             # Creates tables + adds starter data
-├── requirements.txt         # Python packages needed
-├── parking.db               # Auto-created SQLite database (after first run)
+├── app.py                     # Main Flask application and API routes
+├── database.py                # Database setup, migrations, and 50-slot seeder
+├── email_utils.py             # Secure OTP hashing, SMTP emailer & demo fallback
+├── no_show_utils.py           # 15-minute grace period & automated strike engine
+├── analytics_utils.py         # Real-time, weekly, monthly & AI analytics engine
+├── requirements.txt           # Python package requirements
+├── .env.example               # Template environment configuration file
+├── parking.db                 # Auto-created SQLite relational database
 │
-├── templates/               # HTML pages (Jinja2 templates)
-│   ├── base.html             # Shared layout (navbar, flash messages)
-│   ├── login.html
-│   ├── register.html
-│   ├── dashboard.html        # Student: pick a date, see all slots
-│   ├── slot_detail.html      # Student: hourly time-grid for one slot, book an hour
-│   ├── my_bookings.html      # Student: view + cancel own bookings
-│   └── admin.html            # Admin: manage slots + view all bookings
+├── templates/                 # Jinja2 HTML templates
+│   ├── base.html              # Layout, navbar, Rule Book modal, strike pill
+│   ├── dashboard.html         # Reader board, 50-bay square map, booking drawer
+│   ├── slot_detail.html       # Multi-hour duration booking & 14-hour timeline
+│   ├── my_bookings.html       # Reservations, check-in button, violation log
+│   ├── verify_otp.html        # 6-digit OTP verification & resend cooldown
+│   ├── login.html             # Secure login screen
+│   ├── register.html          # Registration form
+│   ├── rules.html             # 12 Facility Rules and Overstay Policy document
+│   ├── admin.html             # Slot manager, active bookings, suspension lift
+│   ├── admin_analytics.html   # AI Parking Analytics dashboard & Q&A terminal
+│   └── admin_overstay.html    # Security gate departure logger & fine assessment
 │
 └── static/
-    └── style.css             # All CSS styling
+    └── style.css              # Theme CSS: Navy Blue + Amber parking garage styling
 ```
 
 ---
 
-## 3. Database Design (Explain this as your ER diagram)
+## 4. Setup & Running Instructions
 
-**users**
-| Column | Type | Notes |
-|---|---|---|
-| id | INTEGER (PK) | auto-increment |
-| full_name | TEXT | |
-| email | TEXT | must be unique |
-| password | TEXT | stored as a hash, never plain text |
-| vehicle_number | TEXT | |
-| role | TEXT | `student` or `admin` |
-
-**slots**
-| Column | Type | Notes |
-|---|---|---|
-| id | INTEGER (PK) | |
-| slot_number | TEXT | e.g. "A1" |
-| slot_type | TEXT | Car / Bike |
-| location | TEXT | e.g. "Block A" |
-
-**bookings**
-| Column | Type | Notes |
-|---|---|---|
-| id | INTEGER (PK) | |
-| user_id | INTEGER (FK → users.id) | who booked |
-| slot_id | INTEGER (FK → slots.id) | which physical slot |
-| vehicle_number | TEXT | |
-| booking_date | TEXT | e.g. "2026-09-15" |
-| start_time | TEXT | e.g. "08:00" |
-| end_time | TEXT | e.g. "09:00" (always 1 hour after start_time) |
-| status | TEXT | Active / Cancelled |
-| created_at | TEXT | when the booking was made |
-
-Relationship: One **user** can have many **bookings**. One **slot** can have many
-**bookings**, but never two *Active* bookings with the same `booking_date` +
-`start_time` (that combination is what prevents double-booking).
-
-Notice `slots` no longer has a "status" column — a slot isn't simply
-Available/Booked anymore, because that now depends on WHICH date and WHICH
-hour you're asking about. Availability is worked out on the fly by checking
-the `bookings` table for that date + hour.
-
----
-
-## 4. Core Features
-
-1. **Student Registration & Login** — passwords hashed with Werkzeug, session-based login.
-2. **Hourly Time Slots** — parking is divided into 14 fixed 1-hour slots per day, from
-   7:00 AM to 9:00 PM (7-8, 8-9, 9-10 ... 20-21).
-3. **Date-based Availability** — student picks a date on the dashboard, then opens a
-   parking slot to see all 14 hours for that date marked **Available**, **Booked**,
-   or **Expired** (an hour that has already passed today).
-4. **Book a Time Slot** — student picks an available hour, enters a vehicle number,
-   and a booking record is created for that exact date + hour.
-5. **My Bookings** — student sees their own booking history (with date and time) and
-   can cancel an active booking, freeing that hour back up.
-6. **Admin Dashboard** — add new physical slots, delete slots, and view every booking
-   (with date + time) ever made by every student.
-7. **Access Control** — students can't reach `/admin`; a student can't cancel someone
-   else's booking (checked using `session['user_id']`).
-
----
-
-## 5. How the Booking Flow Works (good to explain in viva)
-
-1. On the dashboard, the student picks a **date** (defaults to today; past dates are blocked).
-2. Clicking a slot opens `/slot/<slot_id>?date=...`, which builds a list of the 14
-   fixed hourly ranges and checks the `bookings` table to mark each one Available,
-   Booked, or Expired (if the date is today and that hour has already gone by).
-3. Clicking "Book" on an available hour sends a `POST` to `/book` with the slot id,
-   date, start time, and end time (all in hidden form fields) plus the vehicle number.
-4. `app.py` re-checks that no *Active* booking already exists for that exact
-   slot + date + hour (this guards against two students booking the same hour
-   at the same time — a race condition).
-5. If it's free, a new row is inserted into `bookings` with status `Active`.
-6. If the student cancels later, that row's status simply changes to `Cancelled`,
-   which frees the hour up again for anyone (since availability is calculated live
-   from `Active` bookings only).
-
----
-
-## 6. How to Run the Project
-
+### 1. Install Dependencies
 ```bash
-# 1. Install dependencies
 pip install -r requirements.txt
-
-# 2. Run the app (this also auto-creates the database on first run)
-python app.py
-
-# 3. Open your browser
-http://127.0.0.1:5000
 ```
 
-**Default admin login (auto-created on first run):**
-- Email: `admin@university.edu`
-- Password: `admin123`
+### 2. Environment Configuration (Optional)
+Copy `.env.example` to `.env` to configure custom SMTP or AI keys:
+```bash
+cp .env.example .env
+```
+*(If `.env` is omitted, the system runs with local defaults and full Demo Mode fallback).*
 
-Students register their own accounts using the "Register" page.
+### 3. Run the Application
+```bash
+python app.py
+```
+Open your browser and navigate to:
+**[http://localhost:5000](http://localhost:5000)** (or [http://127.0.0.1:5000](http://127.0.0.1:5000))
 
----
-
-## 7. Possible Future Improvements (mention these if asked "what's next?")
-
-- Allow booking multiple consecutive hours in one go (e.g. 9-12).
-- Send email/SMS confirmation on booking.
-- QR-code based slot check-in/check-out.
-- Payment/fee integration (intentionally left out of this version).
-- Real-time slot status updates using WebSockets.
-- A calendar-style weekly view instead of picking one date at a time.
-
----
-
-## 8. Visual Design
-
-The interface is themed around real parking garage signage rather than a
-generic dashboard look:
-
-- **Navy + amber palette** — navy is used for structural surfaces (navbar,
-  table headers, the "board bar" summary strip), amber for primary actions,
-  echoing the black-and-yellow of parking barriers and caution markings.
-- **LED-style status dots** — green / red / grey circular indicators next to
-  each slot and each hourly time range, similar to the indicator lights used
-  above real parking bays.
-- **Two fonts** — Manrope for all body text and labels, and Space Mono
-  (a monospace font) specifically for slot codes, dates, and times, so they
-  read like a digital reader-board display.
-- **"Board bar"** — the navy summary strip at the top of the Dashboard and
-  Admin pages mimics the reader boards seen at parking garage entrances
-  ("X spaces available").
-
-This is easy to point out if a teacher asks about design choices: the theme
-was chosen to match the subject matter, not applied as generic decoration.
+### Default Administrator Credentials
+- **Email:** `admin@university.edu`
+- **Password:** `admin123`
+- **Role:** `admin`
 
 ---
 
-## 9. Why SQLite + raw SQL instead of an ORM (e.g. SQLAlchemy)?
+## 5. Automated Verification Results
 
-For a first project, writing plain SQL (`SELECT`, `INSERT`, `UPDATE`) makes it much
-easier to explain exactly what the database is doing at each step, rather than
-hiding it behind ORM abstractions. This keeps the project at an
-easy-to-defend, intermediate level.
+All 20 required system capabilities were verified via automated integration tests:
+1. Database migration: Exactly 50 slots (`A01` to `A50`) created with zone mapping.
+2. Email OTP generation: 6-digit code, securely hashed, with attempt limits and expiration.
+3. 15-minute grace period: Arrival deadline correctly calculated (`start_time + 15m`).
+4. Multi-hour booking: Consecutive durations from 1 to 14 hours successfully reserved.
+5. Overlap collision prevention: Clashing multi-hour interval bookings strictly rejected.
+6. Check-in mechanism: Arrival confirmation updates status and logs check-in timestamp.
+7. Automated No-Show detection: Overdue bookings marked `No-Show` and slots freed immediately.
+8. Strike escalation: 1 strike per violation; 3 strikes automatically trigger suspension and vehicle ban.
+9. Admin discipline management: Administrators can lift suspensions and reset strikes.
+10. AI Analytics engine: Real-time KPIs, weekly distribution, monthly comparisons, and heuristic Q&A verified.
+11. Gate overstay logging: Actual exit recording and fine calculation (₹50 / 30m) verified.
+12. All web routes loaded with HTTP 200 OK.
+
+---
+
+## 6. Author & Maintainer
+- **Developer / GitHub:** [@chhandtyagi1-byte](https://github.com/chhandtyagi1-byte)
+- **Contact Email:** [chhandtyagi1@gmail.com](mailto:chhandtyagi1@gmail.com)

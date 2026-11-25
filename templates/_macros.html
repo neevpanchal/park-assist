@@ -1,0 +1,43 @@
+{# Reusable UI pieces shared across pages #}
+
+{% macro status_badge(status, long=false) -%}
+    {%- if status == 'Active' -%}
+        <span class="badge badge-amber">{{ 'Waiting for arrival' if long else 'Upcoming' }}</span>
+    {%- elif status == 'Checked-In' -%}
+        <span class="badge badge-green">Parked</span>
+    {%- elif status == 'Completed' -%}
+        <span class="badge badge-blue">Completed</span>
+    {%- elif status == 'No-Show' -%}
+        <span class="badge badge-red">No-show</span>
+    {%- elif status == 'Cancelled' -%}
+        <span class="badge badge-grey">Cancelled</span>
+    {%- else -%}
+        <span class="badge badge-grey">{{ status }}</span>
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro page_head(title, subtitle=None, eyebrow=None) -%}
+<header class="page-head">
+    <div class="page-head-text">
+        {% if eyebrow %}<span class="eyebrow">{{ eyebrow }}</span>{% endif %}
+        <h1 class="page-title">{{ title }}</h1>
+        {% if subtitle %}<p class="page-sub">{{ subtitle }}</p>{% endif %}
+    </div>
+    {% if caller is defined %}<div class="page-head-actions">{{ caller() }}</div>{% endif %}
+</header>
+{%- endmacro %}
+
+{% macro stat(value, label, tone='') -%}
+<div class="stat-tile {% if tone %}stat-{{ tone }}{% endif %}">
+    <span class="stat-value">{{ value }}</span>
+    <span class="stat-label">{{ label }}</span>
+</div>
+{%- endmacro %}
+
+{% macro table_search(target, placeholder='Search…') -%}
+<label class="table-search">
+    <span class="sr-only">{{ placeholder }}</span>
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    <input type="search" placeholder="{{ placeholder }}" data-filter-table="{{ target }}">
+</label>
+{%- endmacro %}

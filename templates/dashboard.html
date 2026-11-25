@@ -1,61 +1,216 @@
 {% extends "base.html" %}
-{% block title %}Parking Slots{% endblock %}
+{% from "_macros.html" import page_head, stat %}
+{% block title %}Book Parking &mdash; Smart Parking{% endblock %}
 
 {% block content %}
-{% set total_capacity = slots|length * total_hours %}
-{% set booked_total = booked_counts.values()|sum %}
+{% set ns = namespace(free=0, partial=0, full=0) %}
+{% for slot in slots %}
+    {% set booked = booked_hours_map.get(slot.id, 0) %}
+    {% if booked == 0 %}{% set ns.free = ns.free + 1 %}
+    {% elif booked >= total_hours %}{% set ns.full = ns.full + 1 %}
+    {% else %}{% set ns.partial = ns.partial + 1 %}{% endif %}
+{% endfor %}
+{% set suspended = user and (user.account_status == 'Suspended' or user.vehicle_banned == 1) %}
+{% set closed_today = selected_date == today and current_hour >= 20 %}
 
-<div class="board-bar">
-    <div>
-        <div class="board-label">Lot status</div>
-        <div class="board-date">{{ selected_date }}</div>
-    </div>
-    <div class="board-stats">
-        <div class="board-stat">
-            <span class="value">{{ slots|length }}</span>
-            <span class="label">Parking slots</span>
+{{ page_head('Book a parking bay', 'Pick a day, then tap any green or amber bay to choose your hours.') }}
+
+{% if suspended %}
+<div class="callout callout-danger">
+    <span class="callout-icon">!</span>
+    <div><strong>Booking is paused on your account.</strong> You've reached 3 no-show strikes. Please visit the campus parking office to get reinstated. <a href="{{ url_for('my_bookings') }}">See your record</a></div>
+</div>
+{% endif %}
+
+<ol class="steps" aria-label="How booking works">
+    <li class="is-current">Choose a day</li>
+    <li>Pick a bay</li>
+    <li>Choose your hours</li>
+</ol>
+
+<!-- Day + view controls -->
+<div class="toolbar">
+    <form method="GET" action="{{ url_for('dashboard') }}" class="toolbar-group" id="dateForm">
+        <input type="hidden" name="view" value="{{ view_mode }}">
+        <span class="toolbar-label">Day</span>
+        <div class="seg">
+            <a href="{{ url_for('dashboard', date=today, view=view_mode) }}" class="{% if selected_date == today %}is-active{% endif %}">Today</a>
+            <a href="{{ url_for('dashboard', date=tomorrow, view=view_mode) }}" class="{% if selected_date == tomorrow %}is-active{% endif %}">Tomorrow</a>
         </div>
-        <div class="board-stat">
-            <span class="value">{{ total_capacity - booked_total }}/{{ total_capacity }}</span>
-            <span class="label">Hours free today</span>
-        </div>
-        <div class="board-stat">
-            <span class="value">7-21</span>
-            <span class="label">Operating hours</span>
+        <label class="sr-only" for="dateSelect">Pick another date</label>
+        <input type="date" id="dateSelect" name="date" class="date-input" value="{{ selected_date }}" min="{{ today }}" onchange="this.form.submit()" title="Pick another date">
+        <noscript><button type="submit" class="btn btn-small btn-secondary">Go</button></noscript>
+    </form>
+
+    <div class="toolbar-group">
+        <span class="toolbar-label">View</span>
+        <div class="seg">
+            <a href="{{ url_for('dashboard', date=selected_date, view='map') }}" class="{% if view_mode == 'map' %}is-active{% endif %}">Map</a>
+            <a href="{{ url_for('dashboard', date=selected_date, view='grid') }}" class="{% if view_mode == 'grid' %}is-active{% endif %}">List</a>
         </div>
     </div>
 </div>
 
-<form method="GET" action="{{ url_for('dashboard') }}" class="date-filter-form">
-    <label>Choose a date</label>
-    <input type="date" name="date" value="{{ selected_date }}" min="{{ today }}">
-    <button type="submit" class="btn btn-small btn-secondary">View</button>
-    <a href="{{ url_for('dashboard', date=today) }}" class="btn btn-small btn-secondary">Today</a>
-    <a href="{{ url_for('dashboard', date=tomorrow) }}" class="btn btn-small btn-secondary">Tomorrow</a>
-</form>
+<div class="stat-row">
+    {{ stat(ns.free, 'Fully free', 'green') }}
+    {{ stat(ns.partial, 'Partly booked', 'amber') }}
+    {{ stat(ns.full, 'Full for the day', 'red') }}
+    {{ stat(selected_date|nice_date, 'Showing', 'ink') }}
+</div>
 
+{% if closed_today %}
+<div class="callout callout-warn">
+    <span class="callout-icon">i</span>
+    <div>Today's booking hours are over (the lot closes at 9:00 PM). <a href="{{ url_for('dashboard', date=tomorrow, view=view_mode) }}">Book for tomorrow instead</a>.</div>
+</div>
+{% else %}
+<div class="callout">
+    <span class="callout-icon">i</span>
+    <div>Arrive within <strong>15 minutes</strong> of your start time and show your QR pass at the gate. Missing it counts as a no-show strike. <a href="{{ url_for('rules') }}">Read the rules</a></div>
+</div>
+{% endif %}
+
+<!-- Filters -->
+<div class="toolbar" style="padding:10px 16px;">
+    <div class="toolbar-group">
+        <span class="toolbar-label">Vehicle</span>
+        <div class="seg" id="typeFilter">
+            <button type="button" class="is-active" data-type="all">All</button>
+            <button type="button" data-type="Car">🚗 Car</button>
+            <button type="button" data-type="Bike">🏍️ Bike</button>
+        </div>
+    </div>
+    <label class="check-toggle">
+        <input type="checkbox" id="onlyOpen"> Hide full bays
+    </label>
+</div>
+
+{% macro bay_tile(slot, closed) -%}
+    {% set booked = booked_hours_map.get(slot.id, 0) %}
+    {% set full = booked >= total_hours %}
+    {% set led = 'led-green' if booked == 0 else ('led-red' if full else 'led-amber') %}
+    {% set free_h = total_hours - booked %}
+    {% if full or closed %}
+    <span class="parking-bay is-full" data-type="{{ slot.slot_type }}" data-full="1" aria-disabled="true"
+          title="Bay {{ slot.slot_number }} is not available">
+    {% else %}
+    <a class="parking-bay {% if booked == 0 %}is-free{% endif %}" data-type="{{ slot.slot_type }}" data-full="0"
+       href="{{ url_for('slot_detail', slot_id=slot.id, date=selected_date) }}"
+       title="Bay {{ slot.slot_number }} · {{ slot.slot_type }} · {{ free_h }} hours free">
+    {% endif %}
+        <span class="bay-top">
+            <span class="led-dot {{ led }}"></span>
+            <span class="bay-code">{{ slot.slot_number }}</span>
+        </span>
+        <span class="bay-icon" aria-hidden="true">{% if slot.slot_type == 'Bike' %}🏍️{% else %}🚗{% endif %}</span>
+        <span class="bay-stats">{{ free_h }}h free</span>
+    {% if full or closed %}</span>{% else %}</a>{% endif %}
+{%- endmacro %}
+
+{% if view_mode == 'map' %}
+<div class="legend-row">
+    <span><span class="led-dot led-green"></span> Free all day</span>
+    <span><span class="led-dot led-amber"></span> Some hours free</span>
+    <span><span class="led-dot led-red"></span> Full</span>
+    <span>🚗 Car bay</span>
+    <span>🏍️ Bike bay</span>
+</div>
+
+<div class="parking-map-container">
+    <div class="parking-facility-square">
+        <div class="exit-gate exit-nw"><span class="gate-sign">EXIT 1</span><span class="gate-sub">Gate A &bull; North-West</span></div>
+        <div class="exit-gate exit-ne"><span class="gate-sign">EXIT 2</span><span class="gate-sub">Gate B &bull; North-East</span></div>
+        <div class="exit-gate exit-sw"><span class="gate-sign">EXIT 3</span><span class="gate-sub">Gate C &bull; South-West</span></div>
+        <div class="exit-gate exit-se"><span class="gate-sign">EXIT 4</span><span class="gate-sub">Gate D &bull; South-East</span></div>
+
+        <div class="perimeter-lane lane-top"><span class="lane-marking">&larr; ONE-WAY DRIVE AISLE &larr;</span></div>
+        <div class="perimeter-lane lane-bottom"><span class="lane-marking">&rarr; ONE-WAY DRIVE AISLE &rarr;</span></div>
+        <div class="perimeter-lane lane-left"><span class="lane-arrow-v">&uarr;</span></div>
+        <div class="perimeter-lane lane-right"><span class="lane-arrow-v">&darr;</span></div>
+
+        {% set rows = [
+            ('North wing', 0, 10, 'Aisle 1 →'),
+            ('Central island · north', 10, 20, None),
+            ('Central island · middle', 20, 30, '← Aisle 2'),
+            ('Central island · south', 30, 40, None),
+            ('South wing', 40, 50, None)
+        ] %}
+        <div class="garage-interior">
+            {% for title, a, b, lane in rows %}
+                {% set row_slots = slots[a:b] %}
+                {% if row_slots %}
+                <div class="bay-row-header">
+                    <span class="row-title">{{ title|upper }} &bull; {{ row_slots[0].slot_number }}&ndash;{{ row_slots[-1].slot_number }}</span>
+                </div>
+                <div class="bay-row">
+                    {% for slot in row_slots %}{{ bay_tile(slot, closed_today) }}{% endfor %}
+                </div>
+                {% if lane %}
+                <div class="drive-lane"><div class="lane-dashed"></div><div class="lane-text">{{ lane|upper }}</div><div class="lane-dashed"></div></div>
+                {% endif %}
+                {% endif %}
+            {% endfor %}
+            {% if slots|length > 50 %}
+                <div class="bay-row-header"><span class="row-title">EXTRA BAYS</span></div>
+                <div class="bay-row">{% for slot in slots[50:] %}{{ bay_tile(slot, closed_today) }}{% endfor %}</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% else %}
 <div class="slot-grid">
     {% for slot in slots %}
-    {% set booked = booked_counts.get(slot.id, 0) %}
+    {% set booked = booked_hours_map.get(slot.id, 0) %}
+    {% set full = booked >= total_hours %}
     {% set fill_pct = (booked / total_hours * 100) if total_hours else 0 %}
-    <div class="slot-card">
+    <div class="slot-card {% if full %}is-full{% endif %}" data-type="{{ slot.slot_type }}" data-full="{{ 1 if full else 0 }}">
         <div class="slot-card-head">
-            <span class="led-dot {{ 'led-red' if booked == total_hours else 'led-green' }}"></span>
+            <span class="led-dot {{ 'led-red' if full else ('led-amber' if booked > 0 else 'led-green') }}"></span>
             <span class="slot-code">{{ slot.slot_number }}</span>
+            <span class="slot-type-badge">{% if slot.slot_type == 'Bike' %}🏍️{% else %}🚗{% endif %} {{ slot.slot_type }}</span>
         </div>
-        <p class="slot-meta">{{ slot.slot_type }} spot in {{ slot.location }}</p>
-
+        <p class="slot-meta">{{ slot.location }}</p>
         <div class="gauge">
             <div class="gauge-track">
-                <div class="gauge-fill {{ 'gauge-full' if booked == total_hours else '' }}" style="width: {{ fill_pct }}%;"></div>
+                <div class="gauge-fill {{ 'gauge-full' if full else '' }}" style="width: {{ fill_pct }}%;"></div>
             </div>
-            <span class="gauge-label">{{ booked }} / {{ total_hours }} hours booked</span>
+            <span class="gauge-label">{{ total_hours - booked }} of {{ total_hours }} hours free</span>
         </div>
-
-        <a href="{{ url_for('slot_detail', slot_id=slot.id, date=selected_date) }}" class="btn btn-small btn-secondary">
-            View time slots
-        </a>
+        {% if full or closed_today %}
+            <span class="btn btn-small btn-secondary btn-full is-disabled">Not available</span>
+        {% else %}
+            <a href="{{ url_for('slot_detail', slot_id=slot.id, date=selected_date) }}" class="btn btn-small btn-full">Choose hours &rarr;</a>
+        {% endif %}
     </div>
     {% endfor %}
 </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const items = document.querySelectorAll('.parking-bay[data-type], .slot-card[data-type]');
+    const onlyOpen = document.getElementById('onlyOpen');
+    let type = 'all';
+
+    function apply() {
+        items.forEach(function (el) {
+            const hide = (type !== 'all' && el.dataset.type !== type) || (onlyOpen.checked && el.dataset.full === '1');
+            el.classList.toggle('is-dim', hide);
+        });
+    }
+
+    document.querySelectorAll('#typeFilter button').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('#typeFilter button').forEach(function (b) { b.classList.remove('is-active'); });
+            btn.classList.add('is-active');
+            type = btn.dataset.type;
+            apply();
+        });
+    });
+    onlyOpen.addEventListener('change', apply);
+})();
+</script>
 {% endblock %}

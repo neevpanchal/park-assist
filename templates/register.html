@@ -1,63 +1,60 @@
 {% extends "base.html" %}
-{% block title %}Register{% endblock %}
+{% block title %}Create account &mdash; Smart University Parking{% endblock %}
 
 {% block body %}
 <div class="auth-page">
     <div class="auth-panel">
         <span class="brand-mark">P</span>
-        <h1>Register once. Book a spot whenever you need one.</h1>
-        <p class="tagline">Create your student account to start booking hourly parking slots across campus.</p>
+        <h1>Sign up once. Park whenever you need to.</h1>
+        <p class="tagline">Create your student account to reserve campus parking by the hour.</p>
 
         <div class="auth-stats">
-            <div class="auth-stat">
-                <span class="value">7-21</span>
-                <span class="label">Hours open (7 AM - 9 PM)</span>
-            </div>
-            <div class="auth-stat">
-                <span class="value">14</span>
-                <span class="label">Hourly slots per day</span>
-            </div>
-            <div class="auth-stat">
-                <span class="value">1 hr</span>
-                <span class="label">Per booking</span>
-            </div>
+            <div class="auth-stat"><span class="value">1 min</span><span class="label">To sign up</span></div>
+            <div class="auth-stat"><span class="value">50</span><span class="label">Bays</span></div>
+            <div class="auth-stat"><span class="value">1–14h</span><span class="label">Per booking</span></div>
         </div>
-
         <div class="auth-stripe"></div>
     </div>
 
     <div class="auth-form-side">
-        <div style="width: 100%; max-width: 380px;">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="flash flash-{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+        <main id="main" style="width: 100%; max-width: 400px;">
+            {% include "_auth_flash.html" %}
 
             <div class="form-card">
-                <h2>Student registration</h2>
+                <h2>Create your account</h2>
+                <p class="form-subtext" style="margin-bottom:18px;">All fields are required.</p>
                 <form method="POST" action="{{ url_for('register') }}">
-                    <label>Full Name</label>
-                    <input type="text" name="full_name" required placeholder="Your full name">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-                    <label>Email</label>
-                    <input type="email" name="email" required placeholder="you@university.edu">
+                    <label for="full_name">Full name</label>
+                    <input type="text" id="full_name" name="full_name" required placeholder="e.g. Alex Johnson" autocomplete="name" autofocus>
 
-                    <label>Password</label>
-                    <input type="password" name="password" required placeholder="Choose a password">
+                    <label for="email">University email</label>
+                    <input type="email" id="email" name="email" required placeholder="alex@university.edu" autocomplete="email">
 
-                    <label>Vehicle Number</label>
-                    <input type="text" name="vehicle_number" required placeholder="e.g. GJ-05-AB-1234">
+                    <label for="password">Password <span class="text-muted" style="font-weight:500;">(at least 6 characters)</span></label>
+                    <div class="password-wrap">
+                        <input type="password" id="password" name="password" minlength="6" required placeholder="Create a password" autocomplete="new-password">
+                        <button type="button" class="password-toggle" onclick="togglePw(this)">Show</button>
+                    </div>
 
-                    <button type="submit" class="btn">Register</button>
+                    <label for="vehicle_number">Vehicle number plate</label>
+                    <input type="text" id="vehicle_number" name="vehicle_number" required placeholder="e.g. GJ-05-AB-1234" style="text-transform:uppercase;" autocomplete="off">
+
+                    <button type="submit" class="btn btn-full btn-lg">Create account</button>
                 </form>
-                <p class="form-footer">
-                    Already have an account? <a href="{{ url_for('login') }}">Login here</a>
-                </p>
+
+                <p class="form-footer">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
             </div>
-        </div>
+        </main>
     </div>
 </div>
+<script>
+function togglePw(btn) {
+    const input = btn.previousElementSibling;
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.textContent = show ? 'Hide' : 'Show';
+}
+</script>
 {% endblock %}

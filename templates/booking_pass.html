@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}Digital Parking Permit &mdash; Slot {{ b.slot_number }}{% endblock %}
+
+{% block content %}
+<div class="pass-wrapper">
+    <!-- Top Action Bar -->
+    <div class="pass-topbar">
+        {% if session.get('user_id') %}
+            <a href="{{ url_for('my_bookings') }}" class="btn btn-small btn-outline">&larr; Back to My Bookings</a>
+        {% else %}
+            <a href="{{ url_for('home') }}" class="btn btn-small btn-outline">&larr; Campus Home</a>
+        {% endif %}
+
+        <div class="pass-topbar-actions">
+            <button type="button" class="btn btn-small btn-primary" onclick="window.print()">
+                🖨️ Print / Save Pass
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Digital Pass Card -->
+    <div class="pass-card">
+        <!-- Header Strip -->
+        <div class="pass-header">
+            <div class="pass-org">
+                <span class="pass-org-icon">🅿️</span>
+                <div>
+                    <h2 class="pass-title">CAMPUS PARKING AUTHORITY</h2>
+                    <p class="pass-subtitle">Official Digital Vehicle Reservation Permit</p>
+                </div>
+            </div>
+            <div class="pass-badge-wrap">
+                {% if b.status == 'Active' %}
+                    <span class="badge badge-amber badge-lg">AWAITING GATE CHECK-IN</span>
+                {% elif b.status == 'Checked-In' %}
+                    <span class="badge badge-green badge-lg">✓ ARRIVAL VERIFIED & PARKED</span>
+                {% elif b.status == 'Completed' %}
+                    <span class="badge badge-blue badge-lg">SESSION COMPLETED</span>
+                {% elif b.status == 'No-Show' %}
+                    <span class="badge badge-red badge-lg">⚠️ NO-SHOW / RELEASED</span>
+                {% else %}
+                    <span class="badge badge-grey badge-lg">{{ b.status|upper }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Pass Body Grid -->
+        <div class="pass-body">
+            <!-- Left Column: Core Credentials -->
+            <div class="pass-main-info">
+                <!-- Big Bay Callout -->
+                <div class="pass-bay-banner">
+                    <div class="bay-display-group">
+                        <span class="bay-label">DESIGNATED BAY</span>
+                        <div class="pass-bay-code">{{ b.slot_number }}</div>
+                    </div>
+                    <div class="bay-meta">
+                        <span class="badge badge-blue">{{ b.slot_type }} SPACE</span>
+                        <div class="bay-gate-hint">
+                            <strong>{{ gate_name }}</strong>
+                            <p>{{ gate_desc }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vehicle License Plate Box -->
+                <div class="pass-plate-container">
+                    <span class="plate-title">AUTHORIZED VEHICLE</span>
+                    <div class="license-plate-tag">
+                        <span class="plate-country">IND</span>
+                        <span class="plate-number">{{ b.vehicle_number }}</span>
+                    </div>
+                </div>
+
+                <!-- Reservation Details Grid -->
+                <div class="pass-specs-grid">
+                    <div class="spec-block">
+                        <span class="spec-label">Reservation Date</span>
+                        <span class="spec-val">{{ b.booking_date|nice_date }}</span>
+                    </div>
+                    <div class="spec-block">
+                        <span class="spec-label">Time Window</span>
+                        <span class="spec-val">{{ b.start_time|t12 }} &ndash; {{ b.end_time|t12 }} ({{ b.duration_hours }}h)</span>
+                    </div>
+                    <div class="spec-block spec-highlight">
+                        <span class="spec-label">15-Min Arrival Deadline</span>
+                        <span class="spec-val mono text-danger font-bold">{{ b.arrival_deadline|t12 }}</span>
+                        <small class="spec-note">Must be scanned at gate before deadline to avoid no-show strike.</small>
+                    </div>
+                    <div class="spec-block">
+                        <span class="spec-label">Driver / Student</span>
+                        <span class="spec-val font-bold">{{ b.full_name }}</span>
+                        <small class="mono text-muted">{{ b.email }}</small>
+                    </div>
+                </div>
+
+                <!-- Status Explanations -->
+                {% if b.status == 'Checked-In' %}
+                    <div class="pass-alert-box pass-alert-success">
+                        <div class="alert-icon">✓</div>
+                        <div>
+                            <strong>Arrival Verified:</strong> This vehicle checked in at 
+                            <span class="mono">{{ b.check_in_time }}</span>. 
+                            Authorized to park in <strong>Bay {{ b.slot_number }}</strong> until <span class="mono">{{ b.end_time|t12 }}</span>.
+                        </div>
+                    </div>
+                {% elif b.status == 'Active' %}
+                    <div class="pass-alert-box pass-alert-warn">
+                        <div class="alert-icon">ℹ️</div>
+                        <div>
+                            <strong>Arrival Pending:</strong> Vehicle must arrive and scan this permit at the entry gate before 
+                            <span class="mono font-bold">{{ b.arrival_deadline|t12 }}</span>. 
+                            Student self-check-in is disabled to guarantee physical occupancy.
+                        </div>
+                    </div>
+                {% elif b.status == 'No-Show' %}
+                    <div class="pass-alert-box pass-alert-danger">
+                        <div class="alert-icon">⚠️</div>
+                        <div>
+                            <strong>Permit Expired:</strong> Vehicle failed to verify arrival before {{ b.arrival_deadline|t12 }}. 
+                            Bay has been released to the general pool and a strike was recorded.
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Right Column: Scannable QR Code & Gate Action -->
+            <div class="pass-qr-side">
+                <div class="qr-display-card">
+                    <div class="qr-frame">
+                        <img src="{{ url_for('booking_qr', booking_id=b.id) }}" alt="Digital Pass QR Code" class="pass-qr-image">
+                    </div>
+                    <div class="qr-caption">
+                        <span class="qr-scan-text">SCAN TO VERIFY PASS</span>
+                        <span class="qr-sub-text">Point gate scanner or mobile camera</span>
+                    </div>
+                </div>
+
+                <!-- Gate Attendant Check-In Action Button -->
+                {% if b.status == 'Active' %}
+                    <div class="gate-verify-panel">
+                        <div class="gate-panel-header">
+                            <span class="gate-shield">🛡️</span>
+                            <strong>Gate Attendant Action</strong>
+                        </div>
+                        <p class="gate-panel-hint">Verify vehicle plate matches <strong class="mono">{{ b.vehicle_number }}</strong>, then confirm entry:</p>
+                        <form method="POST" action="{{ url_for('verify_pass_arrival', booking_id=b.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-success btn-full btn-verify-gate">
+                                ✅ Confirm Gate Check-In
+                            </button>
+                        </form>
+                    </div>
+                {% elif b.status == 'Checked-In' %}
+                    <div class="gate-verified-badge">
+                        <span class="verified-icon">🟢</span>
+                        <div>
+                            <strong>Active on Lot</strong>
+                            <div class="mono text-xs text-muted">In: {{ b.check_in_time }}</div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- Security Verification Details -->
+                <div class="pass-security-foot mono text-xs">
+                    <div>PERMIT ID: #{{ b.id }}-{{ b.slot_number }}-{{ b.booking_date.replace('-', '') }}</div>
+                    <div>SCANNED AT: {{ scanned_at }}</div>
+                    <div>SECURE DIGITAL PASS VERIFICATION SYSTEM</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pass Footer Instructions -->
+        <div class="pass-footer">
+            <div class="pass-rule-reminder">
+                <strong>Facility Rules Notice:</strong> Please display this pass if requested by campus parking enforcement. 
+                Vehicles occupying reserved slots beyond scheduled end time ({{ b.end_time|t12 }}) are subject to an offline overstay penalty of ₹50 per 30 minutes.
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

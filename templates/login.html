@@ -1,58 +1,60 @@
 {% extends "base.html" %}
-{% block title %}Login{% endblock %}
+{% block title %}Log in &mdash; Smart University Parking{% endblock %}
 
 {% block body %}
 <div class="auth-page">
     <div class="auth-panel">
         <span class="brand-mark">P</span>
-        <h1>Find and reserve a parking spot on campus in seconds.</h1>
-        <p class="tagline">Check live slot availability, book by the hour, and manage your bookings from one place.</p>
+        <h1>Campus parking, booked in under a minute.</h1>
+        <p class="tagline">See which bays are free, reserve the hours you need, and show your QR pass at the gate.</p>
 
         <div class="auth-stats">
-            <div class="auth-stat">
-                <span class="value">7-21</span>
-                <span class="label">Hours open (7 AM - 9 PM)</span>
-            </div>
-            <div class="auth-stat">
-                <span class="value">14</span>
-                <span class="label">Hourly slots per day</span>
-            </div>
-            <div class="auth-stat">
-                <span class="value">1 hr</span>
-                <span class="label">Per booking</span>
-            </div>
+            <div class="auth-stat"><span class="value">50</span><span class="label">Bays</span></div>
+            <div class="auth-stat"><span class="value">7–9</span><span class="label">Open daily (AM–PM)</span></div>
+            <div class="auth-stat"><span class="value">15 min</span><span class="label">To check in</span></div>
         </div>
-
         <div class="auth-stripe"></div>
     </div>
 
     <div class="auth-form-side">
-        <div style="width: 100%; max-width: 380px;">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="flash flash-{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+        <main id="main" style="width: 100%; max-width: 400px;">
+            {% include "_auth_flash.html" %}
 
             <div class="form-card">
                 <h2>Log in</h2>
+                <p class="form-subtext" style="margin-bottom:18px;">Use your university email.</p>
                 <form method="POST" action="{{ url_for('login') }}">
-                    <label>Email</label>
-                    <input type="email" name="email" required placeholder="you@university.edu">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-                    <label>Password</label>
-                    <input type="password" name="password" required placeholder="Enter password">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required placeholder="you@university.edu" autocomplete="email" autofocus>
 
-                    <button type="submit" class="btn">Login</button>
+                    <label for="password">Password</label>
+                    <div class="password-wrap">
+                        <input type="password" id="password" name="password" required placeholder="Your password" autocomplete="current-password">
+                        <button type="button" class="password-toggle" onclick="togglePw(this)">Show</button>
+                    </div>
+
+                    <button type="submit" class="btn btn-full btn-lg">Log in</button>
                 </form>
-                <p class="form-footer">
-                    Don't have an account? <a href="{{ url_for('register') }}">Register here</a>
-                </p>
-                <p class="form-hint">admin@university.edu / admin123</p>
+
+                <p class="form-footer">New here? <a href="{{ url_for('register') }}">Create a student account</a></p>
+
+                <div class="demo-hint-box">
+                    <strong>Demo admin:</strong> <span class="mono">admin@university.edu</span> / <span class="mono">admin123</span>
+                    <button type="button" class="btn-link" onclick="document.getElementById('email').value='admin@university.edu';document.getElementById('password').value='admin123';">Fill in</button>
+                </div>
             </div>
-        </div>
+            <a href="{{ url_for('rules') }}" class="auth-back">Read the parking rules &rarr;</a>
+        </main>
     </div>
 </div>
+<script>
+function togglePw(btn) {
+    const input = btn.previousElementSibling;
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    btn.textContent = show ? 'Hide' : 'Show';
+}
+</script>
 {% endblock %}
